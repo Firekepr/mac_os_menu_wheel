@@ -1,0 +1,36 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 56;
+ objects = {
+  B00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureController.swift; sourceTree = "<group>";};
+  C00000000000000000000002 = {isa = PBXBuildFile; fileRef = B00000000000000000000002;};
+  B00000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WheelGeometry.swift; sourceTree = "<group>";};
+  C00000000000000000000001 = {isa = PBXBuildFile; fileRef = B00000000000000000000001;};
+  B00000000000000000000000 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WheelView.swift; sourceTree = "<group>";};
+  C00000000000000000000000 = {isa = PBXBuildFile; fileRef = B00000000000000000000000;};
+  A00000000000000000000001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2640;}; buildConfigurationList = A00000000000000000000020; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A00000000000000000000002; productRefGroup = A00000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000005);};
+  A00000000000000000000002 = {isa = PBXGroup; children = (A00000000000000000000003, A00000000000000000000004); sourceTree = "<group>";};
+  A00000000000000000000003 = {isa = PBXGroup; children = (B00000000000000000000000, B00000000000000000000001, B00000000000000000000002, A00000000000000000000010, A00000000000000000000011, A00000000000000000000012); path = AppWheel; sourceTree = "<group>";};
+  A00000000000000000000004 = {isa = PBXGroup; children = (A00000000000000000000006); name = Products; sourceTree = "<group>";};
+  A00000000000000000000005 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000021; buildPhases = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009); buildRules = (); dependencies = (); name = AppWheel; productName = AppWheel; productReference = A00000000000000000000006; productType = "com.apple.product-type.application";};
+  A00000000000000000000006 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppWheel.app; sourceTree = BUILT_PRODUCTS_DIR;};
+  A00000000000000000000007 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C00000000000000000000000, C00000000000000000000001, C00000000000000000000002, A00000000000000000000013, A00000000000000000000014, A00000000000000000000015); runOnlyForDeploymentPostprocessing = 0;};
+  A00000000000000000000008 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+  A00000000000000000000009 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+  A00000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppWheelApp.swift; sourceTree = "<group>";};
+  A00000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>";};
+  A00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningApps.swift; sourceTree = "<group>";};
+  A00000000000000000000013 = {isa = PBXBuildFile; fileRef = A00000000000000000000010;};
+  A00000000000000000000014 = {isa = PBXBuildFile; fileRef = A00000000000000000000011;};
+  A00000000000000000000015 = {isa = PBXBuildFile; fileRef = A00000000000000000000012;};
+  A00000000000000000000020 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000022, A00000000000000000000023); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+  A00000000000000000000021 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000024, A00000000000000000000025); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+  A00000000000000000000022 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 26.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; ENABLE_TESTABILITY = YES;}; name = Debug;};
+  A00000000000000000000023 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 26.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; SWIFT_COMPILATION_MODE = wholemodule;}; name = Release;};
+  A00000000000000000000024 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CODE_SIGN_IDENTITY = "-"; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = AppWheel; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities"; PRODUCT_BUNDLE_IDENTIFIER = com.local.AppWheel; PRODUCT_NAME = "$(TARGET_NAME)"; MARKETING_VERSION = 0.1.0; CURRENT_PROJECT_VERSION = 1; ENABLE_APP_SANDBOX = NO; ENABLE_HARDENED_RUNTIME = YES; SWIFT_EMIT_LOC_STRINGS = YES;}; name = Debug;};
+  A00000000000000000000025 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CODE_SIGN_IDENTITY = "-"; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = AppWheel; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities"; PRODUCT_BUNDLE_IDENTIFIER = com.local.AppWheel; PRODUCT_NAME = "$(TARGET_NAME)"; MARKETING_VERSION = 0.1.0; CURRENT_PROJECT_VERSION = 1; ENABLE_APP_SANDBOX = NO; ENABLE_HARDENED_RUNTIME = YES; SWIFT_EMIT_LOC_STRINGS = YES;}; name = Release;};
+ };
+ rootObject = A00000000000000000000001;
+}

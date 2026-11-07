@@ -102,6 +102,9 @@ struct ContentView: View {
             interaction.reset()
             interaction.diameter = diameter
         }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)) { _ in
+            interaction.reset()
+        }
         .sheet(isPresented: $showsExceptions) {
             AppExceptionsView(exceptions: gesture.exceptions)
         }

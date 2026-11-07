@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The close target survives travel across the wheel; a new dwell replaces it.
+/// The close target survives the gap to its outer sector, but a different
+/// application selection clears it immediately and begins a fresh dwell.
 /// Revealing the action never performs it. Releasing/clicking its explicit hit
 /// area is the only way to request a quit.
 @MainActor
@@ -21,6 +22,9 @@ final class WheelInteraction: ObservableObject {
         if self.id != id {
             cancelDwell()
             self.id = id
+        }
+        if let id, let closeTargetID, id != closeTargetID {
+            self.closeTargetID = nil
         }
         guard canRevealClose, let id else { cancelDwell(); return }
         guard closeTargetID != id, dwellTimer == nil else { return }

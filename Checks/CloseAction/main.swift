@@ -9,12 +9,13 @@ MainActor.assumeIsolated {
     state.select("editor", canRevealClose: true)
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
     precondition(state.closeTargetID == "editor" && !state.isCloseHovered)
-    // Travel through other sectors or the center must not lose the named target.
+    // Crossing the gap preserves the action; selecting a different app clears it.
     state.select(nil, canRevealClose: false)
     precondition(state.id == nil && state.closeTargetID == "editor")
-    state.select("browser", canRevealClose: false)
     state.hoverClose()
     precondition(state.id == "editor" && state.isCloseHovered)
+    state.select("browser", canRevealClose: true)
+    precondition(state.closeTargetID == nil && !state.isCloseHovered, "Selection focus retained the old action")
     state.reset()
     precondition(state.id == nil && state.closeTargetID == nil && !state.isCloseHovered)
 
@@ -47,6 +48,19 @@ MainActor.assumeIsolated {
     let closed = WheelApp(application: nil, favorite: FavoriteApp(id: "closed", name: "Fechado", path: "/fake.app", position: 0))
     precondition(model.requestQuit(closed, terminate: { _ in requests += 1; return true }) != nil)
     precondition(requests == 2, "A closed favorite received a quit request")
+
+    var posted: [CGEvent] = []
+    let controller = GestureController(defaults: defaults, frontmostBundleIdentifier: { "test.editor" },
+                                       postEvent: { posted.append($0) })
+    let down = CGEvent(mouseEventSource: nil, mouseType: .rightMouseDown,
+                       mouseCursorPosition: CGPoint(x: 300, y: 300), mouseButton: .right)!
+    precondition(controller.handle(.rightMouseDown, event: down) == nil)
+    NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
+    let up = CGEvent(mouseEventSource: nil, mouseType: .rightMouseUp,
+                     mouseCursorPosition: CGPoint(x: 300, y: 300), mouseButton: .right)!
+    precondition(controller.handle(.rightMouseUp, event: up) == nil)
+    precondition(posted.isEmpty, "Focus change replayed a click into the newly active app")
+    controller.shutDown()
 
     let screen = CGRect(x: -1440, y: -200, width: 1440, height: 900)
     for diameter in [260.0, 380.0, 520.0] {

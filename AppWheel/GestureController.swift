@@ -60,6 +60,8 @@ final class GestureController: ObservableObject {
                                                           name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                           name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
+                                                          name: NSWorkspace.didActivateApplicationNotification, object: nil)
         DispatchQueue.main.async { [weak self] in self?.restoreGestureIfNeeded() }
     }
 

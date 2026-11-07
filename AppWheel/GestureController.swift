@@ -13,9 +13,10 @@ final class GestureController: ObservableObject {
     @Published private(set) var needsPermission = false
     @Published private(set) var status = "Ative o gesto para usar a roda sobre outros aplicativos."
     let preferences: WheelPreferences
+    let favorites: AppFavorites
     let exceptions: AppExceptions
 
-    private let model = RunningApps()
+    private let model: RunningApps
     private let selection = WheelSelection()
     private var panel: WheelPanel?
     private var tap: CFMachPort?
@@ -44,6 +45,9 @@ final class GestureController: ObservableObject {
         self.defaults = defaults
         self.frontmostBundleIdentifier = frontmostBundleIdentifier
         self.postEvent = postEvent
+        let favorites = AppFavorites(defaults: defaults)
+        self.favorites = favorites
+        self.model = RunningApps(favorites: favorites, observesFavorites: false)
         self.preferences = WheelPreferences(defaults: defaults)
         self.exceptions = AppExceptions(defaults: defaults)
         NotificationCenter.default.addObserver(self, selector: #selector(cancelForEnvironmentChange),
@@ -326,8 +330,8 @@ final class GestureController: ObservableObject {
         }
         guard didMoveForSelection else { selection.id = nil; return }
         let local = CGPoint(x: point.x - panel.frame.minX, y: panel.frame.maxY - point.y)
-        let id = WheelGeometry.index(at: local, count: model.apps.count, allowsBeyondEdge: true, diameter: presentedDiameter)
-            .map { model.apps[$0].id }
+        let id = WheelGeometry.index(at: local, count: model.slots.count, allowsBeyondEdge: true, diameter: presentedDiameter)
+            .flatMap { model.slots[$0].app?.id }
         if selection.id != id { selection.id = id }
     }
 
@@ -381,7 +385,7 @@ final class GestureController: ObservableObject {
 
 @MainActor
 private final class WheelSelection: ObservableObject {
-    @Published var id: pid_t?
+    @Published var id: String?
     @Published var isPresented = false
     @Published var diameter: CGFloat = WheelGeometry.size
 }

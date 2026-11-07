@@ -72,15 +72,21 @@ struct WheelPreferencesView: View {
     var body: some View {
         Form {
             Section("Aparência") {
-                LabeledContent("Tamanho da roda", value: "\(Int(preferences.wheelDiameter)) pt")
-                Slider(value: $preferences.wheelDiameter, in: 260...520, step: 10) {
-                    Text("Tamanho da roda")
+                VStack(spacing: 10) {
+                    LabeledContent("Tamanho da roda", value: "\(Int(preferences.wheelDiameter)) pt")
+                    Slider(value: $preferences.wheelDiameter, in: 260...520, step: 10) {
+                        Text("Tamanho da roda")
+                    }
+                    .labelsHidden()
                 }
             }
             Section("Gesto de abertura") {
-                LabeledContent("Tempo para abrir", value: "\(Int((preferences.holdDelay * 1000).rounded())) ms")
-                Slider(value: $preferences.holdDelay, in: 0.15...1.0, step: 0.05) {
-                    Text("Tempo para abrir")
+                VStack(spacing: 10) {
+                    LabeledContent("Tempo para abrir", value: "\(Int((preferences.holdDelay * 1000).rounded())) ms")
+                    Slider(value: $preferences.holdDelay, in: 0.15...1.0, step: 0.05) {
+                        Text("Tempo para abrir")
+                    }
+                    .labelsHidden()
                 }
                 Picker("Botão do mouse", selection: $preferences.triggerButton) {
                     ForEach(MouseTriggerButton.allCases) { button in
@@ -98,6 +104,5 @@ struct WheelPreferencesView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 380)
     }
 }

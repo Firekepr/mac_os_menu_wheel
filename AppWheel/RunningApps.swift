@@ -1,20 +1,49 @@
 import AppKit
 import SwiftUI
+import Combine
 
 struct WheelApp: Identifiable {
-    let application: NSRunningApplication
-    var id: pid_t { application.processIdentifier }
-    var name: String { application.localizedName ?? "Aplicativo" }
-    var icon: NSImage { application.icon ?? NSImage(named: NSImage.applicationIconName)! }
+    let application: NSRunningApplication?
+    var favorite: FavoriteApp? = nil
+    var id: String { favorite?.id ?? application?.bundleIdentifier ?? application?.bundleURL?.path ?? "pid:\(application?.processIdentifier ?? -1)" }
+    var name: String { application?.localizedName ?? favorite?.name ?? "Aplicativo" }
+    var url: URL? {
+        if let url = application?.bundleURL { return url }
+        guard let favorite else { return nil }
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: favorite.id)
+            ?? URL(fileURLWithPath: favorite.path)
+    }
+    var icon: NSImage {
+        application?.icon ?? url.map { NSWorkspace.shared.icon(forFile: $0.path) }
+            ?? NSImage(named: NSImage.applicationIconName)!
+    }
+}
+
+struct WheelSlot: Identifiable {
+    let id: Int
+    let app: WheelApp?
 }
 
 @MainActor
 final class RunningApps: ObservableObject {
-    @Published private(set) var apps: [WheelApp] = []
+    @Published private(set) var slots: [WheelSlot] = []
+    var apps: [WheelApp] { slots.compactMap(\.app) }
+    var visibleRunningCount: Int { apps.filter { $0.application != nil }.count }
+    private let favorites: AppFavorites
+    private var favoritesSubscription: AnyCancellable?
     @Published private(set) var total = 0
     @Published private(set) var activationError: String?
 
-    init() { refresh() }
+    init(favorites: AppFavorites? = nil, observesFavorites: Bool = true) {
+        self.favorites = favorites ?? AppFavorites()
+        refresh()
+        if observesFavorites {
+            favoritesSubscription = self.favorites.$apps.sink { [weak self] _ in
+                // Published sends before storage changes. Refresh the preview on the next turn.
+                DispatchQueue.main.async { self?.refresh() }
+            }
+        }
+    }
 
     func refresh() {
         let running = NSWorkspace.shared.runningApplications
@@ -22,13 +51,27 @@ final class RunningApps: ObservableObject {
             .sorted {
                 ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending
             }
-        total = running.count
-        apps = running.prefix(8).map { WheelApp(application: $0) }
+        var seen = Set<String>()
+        let entries = running.map { WheelApp(application: $0) }.filter { seen.insert($0.id).inserted }
+        total = entries.count
+        let pinned = Dictionary(uniqueKeysWithValues: favorites.apps.map { ($0.position, $0.id) })
+        let identifiers = FavoriteLayout.arrange(runningIDs: entries.map(\.id), favorites: pinned)
+        slots = identifiers.enumerated().map { position, id in
+            guard let id else { return WheelSlot(id: position, app: nil) }
+            let favorite = favorites.apps.first { $0.id == id }
+            let app = entries.first { $0.id == id }.map { entry -> WheelApp in
+                var entry = entry
+                entry.favorite = favorite
+                return entry
+            } ?? favorite.map { WheelApp(application: nil, favorite: $0) }
+            return WheelSlot(id: position, app: app)
+        }
     }
 
     func activate(_ app: WheelApp, completion: ((String?) -> Void)? = nil) {
         activationError = nil
-        guard !app.application.isTerminated, let url = app.application.bundleURL else {
+        guard app.favorite != nil || app.application?.isTerminated != true,
+              let url = app.url, FileManager.default.fileExists(atPath: url.path) else {
             let message = "\(app.name) não está mais disponível. Atualize a lista de aplicativos."
             activationError = message
             completion?(message)

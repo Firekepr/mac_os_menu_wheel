@@ -3,7 +3,7 @@ import SwiftUI
 struct WheelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
-    let selectedID: pid_t?
+    let selectedID: String?
 
     private var selected: WheelApp? {
         model.apps.first { $0.id == selectedID }
@@ -15,12 +15,14 @@ struct WheelView: View {
                 .fill(.clear)
                 .glassEffect(.regular, in: Circle())
 
-            ForEach(Array(model.apps.enumerated()), id: \.element.id) { index, app in
-                let angle = Double(index) * 2 * .pi / Double(model.apps.count) - .pi / 2
-                let active = selectedID == app.id
+            ForEach(model.slots) { slot in
+                let index = slot.id
+                let app = slot.app
+                let angle = Double(index) * 2 * .pi / Double(model.slots.count) - .pi / 2
+                let active = app != nil && selectedID == app?.id
                 let iconRadius: CGFloat = active && !reduceMotion ? 140 : 135
 
-                WheelSector(index: index, count: model.apps.count)
+                WheelSector(index: index, count: model.slots.count)
                     .fill(
                         RadialGradient(
                             colors: [.accentColor.opacity(0.05), .accentColor.opacity(0.30)],
@@ -29,14 +31,14 @@ struct WheelView: View {
                     )
                     .opacity(active ? 1 : 0)
 
-                WheelSector(index: index, count: model.apps.count)
+                WheelSector(index: index, count: model.slots.count)
                     .stroke(.primary.opacity(0.08), lineWidth: 1)
 
-                WheelSector(index: index, count: model.apps.count)
+                WheelSector(index: index, count: model.slots.count)
                     .stroke(.white.opacity(0.22), lineWidth: 1)
                     .opacity(active ? 1 : 0)
 
-                WheelRim(index: index, count: model.apps.count)
+                WheelRim(index: index, count: model.slots.count)
                     .stroke(
                         LinearGradient(
                             colors: [.accentColor.opacity(0.70), .white.opacity(0.95), .accentColor.opacity(0.70)],
@@ -54,13 +56,27 @@ struct WheelView: View {
                     .opacity(active ? 1 : 0)
                     .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
 
-                Image(nsImage: app.icon)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 52, height: 52)
-                    .scaleEffect(active && !reduceMotion ? 1.16 : 1)
-                    .shadow(color: .black.opacity(active ? 0.24 : 0.15), radius: active ? 10 : 6, y: active ? 6 : 4)
-                    .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
+                if let app {
+                    Image(nsImage: app.icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 52, height: 52)
+                        .scaleEffect(active && !reduceMotion ? 1.16 : 1)
+                        .shadow(color: .black.opacity(active ? 0.24 : 0.15), radius: active ? 10 : 6, y: active ? 6 : 4)
+                        .overlay(alignment: .bottomTrailing) {
+                            if app.favorite != nil {
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(4)
+                                    .background(Color.accentColor, in: Circle())
+                            }
+                        }
+                        .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
+                } else {
+                    Circle().fill(.secondary.opacity(0.25)).frame(width: 5, height: 5)
+                        .offset(x: cos(angle) * 135, y: sin(angle) * 135)
+                }
             }
 
             VStack(spacing: 6) {

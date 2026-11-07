@@ -3,9 +3,14 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var gesture: GestureController
     @ObservedObject var preferences: WheelPreferences
-    @StateObject private var model = RunningApps()
-    @State private var selectedID: pid_t?
+    @StateObject private var model: RunningApps
+    @State private var selectedID: String?
     @State private var showsExceptions = false
+
+    init(preferences: WheelPreferences, favorites: AppFavorites? = nil) {
+        self.preferences = preferences
+        _model = StateObject(wrappedValue: RunningApps(favorites: favorites))
+    }
 
     private var previewDiameter: CGFloat { min(CGFloat(preferences.wheelDiameter), 400) }
 
@@ -82,8 +87,8 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
             }
 
-            if model.total > 8 {
-                Text("Mostrando 8 de \(model.total) aplicativos abertos.")
+            if model.total > model.visibleRunningCount {
+                Text("\(model.visibleRunningCount) de \(model.total) aplicativos abertos na roda.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -104,8 +109,8 @@ struct ContentView: View {
 
 
     private func select(at point: CGPoint) {
-        selectedID = WheelGeometry.index(at: point, count: model.apps.count, allowsBeyondEdge: false, diameter: previewDiameter)
-            .map { model.apps[$0].id }
+        selectedID = WheelGeometry.index(at: point, count: model.slots.count, allowsBeyondEdge: false, diameter: previewDiameter)
+            .flatMap { model.slots[$0].app?.id }
     }
 }
 

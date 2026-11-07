@@ -2,25 +2,57 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum FavoriteVisibility: String, Codable, CaseIterable, Identifiable {
+    case always, whenRunning
+    var id: String { rawValue }
+    var title: String { self == .always ? "Sempre na roda" : "Só quando aberto" }
+}
+
 struct FavoriteApp: Codable, Identifiable {
     let id: String
     let name: String
     let path: String
     let position: Int
+    let visibility: FavoriteVisibility
+
+    init(id: String, name: String, path: String, position: Int, visibility: FavoriteVisibility = .always) {
+        self.id = id
+        self.name = name
+        self.path = path
+        self.position = position
+        self.visibility = visibility
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, path, position, visibility }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        name = try values.decode(String.self, forKey: .name)
+        path = try values.decode(String.self, forKey: .path)
+        position = try values.decode(Int.self, forKey: .position)
+        // Existing favorites keep their behavior when upgrading.
+        visibility = (try? values.decode(FavoriteVisibility.self, forKey: .visibility)) ?? .always
+    }
 }
 
-/// A favorite owns its direction, even when the application is closed.
-/// Remaining running apps fill vacant positions without appearing twice.
+/// Conditional favorites reserve their direction only while running.
+/// Keep eight sectors whenever favorites are configured so directions stay stable.
 enum FavoriteLayout {
-    static func arrange(runningIDs: [String], favorites: [Int: String]) -> [String?] {
+    static func arrange(runningIDs: [String], favorites: [Int: String], onlyWhenRunning: Set<String> = []) -> [String?] {
         var seen = Set<String>()
         let running = runningIDs.filter { seen.insert($0).inserted }
         var pinned: [Int: String] = [:]
         var reserved = Set<String>()
+        var configured = Set<String>()
         for position in favorites.keys.sorted() where (0..<8).contains(position) {
-            if let id = favorites[position], reserved.insert(id).inserted { pinned[position] = id }
+            guard let id = favorites[position], configured.insert(id).inserted else { continue }
+            if !onlyWhenRunning.contains(id) || seen.contains(id) {
+                pinned[position] = id
+                reserved.insert(id)
+            }
         }
-        guard !pinned.isEmpty else { return Array(running.prefix(8)).map(Optional.some) }
+        guard !configured.isEmpty else { return Array(running.prefix(8)).map(Optional.some) }
         var remaining = running.filter { !reserved.contains($0) }.makeIterator()
         return (0..<8).map { pinned[$0] ?? remaining.next() }
     }
@@ -51,13 +83,19 @@ final class AppFavorites: ObservableObject {
 
     func app(at position: Int) -> FavoriteApp? { apps.first { $0.position == position } }
 
-    func set(position: Int, bundleIdentifier: String, name: String, path: String) {
+    func set(position: Int, bundleIdentifier: String, name: String, path: String, visibility: FavoriteVisibility? = nil) {
         guard (0..<8).contains(position) else { return }
         error = nil
+        let mode = visibility ?? apps.first { $0.id == bundleIdentifier }?.visibility ?? .always
         apps.removeAll { $0.position == position || $0.id == bundleIdentifier }
-        apps.append(FavoriteApp(id: bundleIdentifier, name: name, path: path, position: position))
+        apps.append(FavoriteApp(id: bundleIdentifier, name: name, path: path, position: position, visibility: mode))
         apps.sort { $0.position < $1.position }
         save()
+    }
+
+    func setVisibility(_ visibility: FavoriteVisibility, at position: Int) {
+        guard let app = app(at: position) else { return }
+        set(position: position, bundleIdentifier: app.id, name: app.name, path: app.path, visibility: visibility)
     }
 
     func remove(at position: Int) {
@@ -102,7 +140,7 @@ struct AppFavoritesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Apps favoritos em posições fixas").font(.title2.bold())
-            Text("Escolha o app de cada direção. Favoritos fechados continuam na roda e podem ser abertos por ela. Os outros espaços recebem os apps abertos.")
+            Text("Escolha o app de cada direção e quando ele aparece. Em “Só quando aberto”, o espaço fica livre para outros apps enquanto o favorito estiver fechado.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             List(0..<8, id: \.self) { position in
@@ -114,6 +152,20 @@ struct AppFavoritesView: View {
                         Text(AppFavorites.directions[position]).font(.caption).foregroundStyle(.secondary)
                         Text(favorites.app(at: position)?.name ?? "Automático")
                             .fontWeight(.medium)
+                        if let app = favorites.app(at: position) {
+                            Picker("Disponibilidade", selection: Binding(
+                                get: { favorites.app(at: position)?.visibility ?? app.visibility },
+                                set: { favorites.setVisibility($0, at: position) }
+                            )) {
+                                ForEach(FavoriteVisibility.allCases) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .fixedSize()
+                            .accessibilityLabel("Quando mostrar \(app.name): \(AppFavorites.directions[position])")
+                        }
                     }
                     Spacer()
                     Menu {

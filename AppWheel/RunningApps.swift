@@ -55,7 +55,8 @@ final class RunningApps: ObservableObject {
         let entries = running.map { WheelApp(application: $0) }.filter { seen.insert($0.id).inserted }
         total = entries.count
         let pinned = Dictionary(uniqueKeysWithValues: favorites.apps.map { ($0.position, $0.id) })
-        let identifiers = FavoriteLayout.arrange(runningIDs: entries.map(\.id), favorites: pinned)
+        let conditional = Set(favorites.apps.filter { $0.visibility == .whenRunning }.map(\.id))
+        let identifiers = FavoriteLayout.arrange(runningIDs: entries.map(\.id), favorites: pinned, onlyWhenRunning: conditional)
         slots = identifiers.enumerated().map { position, id in
             guard let id else { return WheelSlot(id: position, app: nil) }
             let favorite = favorites.apps.first { $0.id == id }
@@ -70,7 +71,7 @@ final class RunningApps: ObservableObject {
 
     func activate(_ app: WheelApp, completion: ((String?) -> Void)? = nil) {
         activationError = nil
-        guard app.favorite != nil || app.application?.isTerminated != true,
+        guard app.favorite?.visibility == .always || app.application.map({ !$0.isTerminated }) == true,
               let url = app.url, FileManager.default.fileExists(atPath: url.path) else {
             let message = "\(app.name) não está mais disponível. Atualize a lista de aplicativos."
             activationError = message

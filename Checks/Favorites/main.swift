@@ -47,5 +47,33 @@ MainActor.assumeIsolated {
     // Empty sectors keep their angle and resolve to no target, rather than compacting.
     let lowerRight = WheelGeometry.index(at: CGPoint(x: 285, y: 285), count: closed.count, allowsBeyondEdge: true)!
     precondition(lowerRight == 3 && closed[lowerRight] == nil)
-    print("Favorite checks passed: directions, closed apps, overflow, duplicates, persistence, moving, removal, frozen gesture, missing app.")
+    let legacy = Data("""
+        [{"id":"legacy.app","name":"Antigo","path":"/old.app","position":1}]
+        """.utf8)
+    let migrated = try! JSONDecoder().decode([FavoriteApp].self, from: legacy)
+    precondition(migrated[0].visibility == .always, "Upgrade changed existing favorites")
+    let conditionalClosed = FavoriteLayout.arrange(runningIDs: ["finder"], favorites: pinned, onlyWhenRunning: ["browser"])
+    precondition(conditionalClosed.count == 8 && conditionalClosed[0] == "finder" && conditionalClosed[5] == "editor")
+    precondition(!conditionalClosed.contains("browser"))
+    let conditionalOpen = FavoriteLayout.arrange(runningIDs: ["finder", "browser"], favorites: pinned, onlyWhenRunning: ["browser"])
+    precondition(conditionalOpen[0] == "browser" && conditionalOpen[5] == "editor")
+    precondition(conditionalOpen.filter { $0 == "browser" }.count == 1)
+    let allConditionalClosed = FavoriteLayout.arrange(runningIDs: ["finder"], favorites: [5: "editor"], onlyWhenRunning: ["editor"])
+    precondition(allConditionalClosed.count == 8 && allConditionalClosed[0] == "finder" && allConditionalClosed[5] == nil)
+    favorites.set(position: 1, bundleIdentifier: "test.conditional", name: "Condicional", path: "/fake.app")
+    favorites.setVisibility(.whenRunning, at: 1)
+    precondition(AppFavorites(defaults: defaults).app(at: 1)?.visibility == .whenRunning)
+    favorites.set(position: 6, bundleIdentifier: "test.conditional", name: "Condicional", path: "/fake.app")
+    precondition(favorites.app(at: 1) == nil && favorites.app(at: 6)?.visibility == .whenRunning)
+    let conditionalModel = RunningApps(favorites: favorites, observesFavorites: false)
+    precondition(conditionalModel.slots.count == 8)
+    precondition(!conditionalModel.apps.contains { $0.id == "test.conditional" })
+    // A target that closed during the gesture must not be launched in this mode.
+    failure = nil
+    conditionalModel.activate(WheelApp(application: nil, favorite: favorites.app(at: 6)!)) { failure = $0 }
+    precondition(failure != nil)
+    favorites.setVisibility(.always, at: 6)
+    conditionalModel.refresh()
+    precondition(conditionalModel.slots[6].app?.id == "test.conditional")
+    print("Favorite checks passed: directions, closed apps, overflow, duplicates, persistence, moving, removal, frozen gesture, missing app, conditional visibility, migration.")
 }

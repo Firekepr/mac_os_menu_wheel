@@ -87,6 +87,7 @@ struct WheelView: View {
                                     .background(Color.accentColor, in: Circle())
                             }
                         }
+                        .modifier(SelectedIconFloat(isSelected: active))
                         .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
                 } else {
                     Circle().fill(.secondary.opacity(0.25)).frame(width: 5, height: 5)
@@ -160,6 +161,28 @@ struct WheelView: View {
         }
     }
 
+}
+
+private struct SelectedIconFloat: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let isSelected: Bool
+    @State private var startedAt: Date?
+
+    private var isFloating: Bool { isSelected && !reduceMotion }
+
+    func body(content: Content) -> some View {
+        // Keep the exact same image subtree when selection changes. Conditionally
+        // wrapping it in a phase animator replaces its identity and can flicker.
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isFloating)) { context in
+            let elapsed = startedAt.map { max(0, context.date.timeIntervalSince($0)) } ?? 0
+            let lift = isFloating ? -2 * (1 - cos(elapsed * 2 * .pi / 2.3)) : 0
+            content.offset(y: lift)
+        }
+        .onChange(of: isFloating, initial: true) { _, floating in
+            // Start at zero displacement and velocity on every selection.
+            startedAt = floating ? .now : nil
+        }
+    }
 }
 
 /// Just the outside arc, so the light follows the selected sector's rim.

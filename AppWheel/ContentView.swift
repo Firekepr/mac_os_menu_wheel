@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject private var gesture: GestureController
     @StateObject private var model = RunningApps()
     @State private var selectedID: pid_t?
+    @State private var showsExceptions = false
 
     private var selected: WheelApp? {
         model.apps.first { $0.id == selectedID }
@@ -57,9 +58,14 @@ struct ContentView: View {
                     .font(.caption)
             }
 
-            Button("Atualizar aplicativos", systemImage: "arrow.clockwise") {
-                model.refresh()
-                selectedID = nil
+            HStack {
+                Button("Atualizar aplicativos", systemImage: "arrow.clockwise") {
+                    model.refresh()
+                    selectedID = nil
+                }
+                Button("Exceções por aplicativo", systemImage: "hand.raised") {
+                    showsExceptions = true
+                }
             }
             .buttonStyle(.bordered)
 
@@ -78,6 +84,9 @@ struct ContentView: View {
         }
         .padding(32)
         .frame(width: 640, height: 800)
+        .sheet(isPresented: $showsExceptions) {
+            AppExceptionsView(exceptions: gesture.exceptions)
+        }
         .background {
             LinearGradient(
                 colors: [.blue.opacity(0.12), .clear, .mint.opacity(0.10)],

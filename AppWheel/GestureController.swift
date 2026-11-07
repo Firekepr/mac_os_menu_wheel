@@ -12,6 +12,7 @@ final class GestureController: ObservableObject {
     @Published private(set) var isEnabled = false
     @Published private(set) var needsPermission = false
     @Published private(set) var status = "Ative o gesto para usar a roda sobre outros aplicativos."
+    let exceptions: AppExceptions
 
     private let model = RunningApps()
     private let selection = WheelSelection()
@@ -23,16 +24,21 @@ final class GestureController: ObservableObject {
     private var pendingDown: CGEvent?
     private var wheelIsOpen = false
     private var consumeUntilUp = false
+    private var bypassRightButton = false
     private var selectionOrigin = CGPoint.zero
     private var didMoveForSelection = false
     private var presentationGeneration = 0
     private let replayMarker: Int64 = 0x415050574845454C
     private let defaults: UserDefaults
+    private let frontmostBundleIdentifier: () -> String?
     private let enabledPreferenceKey = "globalGestureEnabled"
     private var didRequestPermission = false
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard,
+         frontmostBundleIdentifier: @escaping () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }) {
         self.defaults = defaults
+        self.frontmostBundleIdentifier = frontmostBundleIdentifier
+        self.exceptions = AppExceptions(defaults: defaults)
         NotificationCenter.default.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
@@ -113,6 +119,7 @@ final class GestureController: ObservableObject {
         cancelHold()
         dismiss(animated: false)
         consumeUntilUp = false
+        bypassRightButton = false
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
         tap = nil
@@ -134,7 +141,7 @@ final class GestureController: ObservableObject {
         }
     }
 
-    private func handle(_ type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    func handle(_ type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         let unchanged = Unmanaged.passUnretained(event)
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             cancelForEnvironmentChange()
@@ -146,21 +153,28 @@ final class GestureController: ObservableObject {
         switch type {
         case .rightMouseDown:
             dismiss()
+            cancelHold()
+            pendingDown = nil
+            consumeUntilUp = false
+            bypassRightButton = exceptions.contains(bundleIdentifier: frontmostBundleIdentifier())
+            // Decide once for the whole press. Excluded apps receive the original
+            // down, drags and up immediately, without delaying or replaying them.
+            if bypassRightButton { return unchanged }
             guard let copy = event.copy() else { return unchanged }
             pendingDown = copy
-            consumeUntilUp = false
-            cancelHold()
             holdTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self, let down = self.pendingDown else { return }
                     self.pendingDown = nil
                     self.consumeUntilUp = true
+                    guard !self.exceptions.contains(bundleIdentifier: self.frontmostBundleIdentifier()) else { return }
                     self.show(at: self.appKitPoint(down.location))
                 }
             }
             return nil
 
         case .rightMouseDragged:
+            if bypassRightButton { return unchanged }
             if let down = pendingDown, hypot(event.location.x - down.location.x, event.location.y - down.location.y) > 8 {
                 // An early drag belongs to the underlying app, including its original down.
                 cancelHold()
@@ -177,6 +191,10 @@ final class GestureController: ObservableObject {
             return unchanged
 
         case .rightMouseUp:
+            if bypassRightButton {
+                bypassRightButton = false
+                return unchanged
+            }
             cancelHold()
             if let down = pendingDown {
                 pendingDown = nil

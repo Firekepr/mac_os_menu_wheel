@@ -25,26 +25,45 @@ final class GestureController: ObservableObject {
     private var consumeUntilUp = false
     private var selectionOrigin = CGPoint.zero
     private var didMoveForSelection = false
+    private var presentationGeneration = 0
     private let replayMarker: Int64 = 0x415050574845454C
+    private let defaults: UserDefaults
+    private let enabledPreferenceKey = "globalGestureEnabled"
+    private var didRequestPermission = false
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         NotificationCenter.default.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
                                                name: NSApplication.willTerminateNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(restoreGestureIfNeeded),
+                                               name: NSApplication.didBecomeActiveNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                           name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                           name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+        DispatchQueue.main.async { [weak self] in self?.restoreGestureIfNeeded() }
     }
 
-    func start() {
+    @objc private func restoreGestureIfNeeded() {
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1",
+              defaults.bool(forKey: enabledPreferenceKey), !isEnabled else { return }
+        start(requestPermission: false)
+    }
+
+    func start(requestPermission: Bool = true) {
+        defaults.set(true, forKey: enabledPreferenceKey)
         guard !isEnabled else { return }
         guard AXIsProcessTrusted() else {
             needsPermission = true
-            status = "Permita o AppWheel em Acessibilidade e depois clique em Ativar gesto global novamente."
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-            _ = AXIsProcessTrustedWithOptions(options)
+            status = "Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do AppWheel."
+            // Restoring a preference must never produce a permission-dialog loop.
+            if requestPermission && !didRequestPermission {
+                didRequestPermission = true
+                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(options)
+            }
             return
         }
         let events: [CGEventType] = [.rightMouseDown, .rightMouseUp, .rightMouseDragged, .mouseMoved, .keyDown, .leftMouseDown]
@@ -80,18 +99,25 @@ final class GestureController: ObservableObject {
     }
 
     func stop() {
+        defaults.set(false, forKey: enabledPreferenceKey)
+        shutDown()
+        needsPermission = false
+        status = "Gesto desativado. O botão direito funciona normalmente."
+    }
+
+    /// Release the capture on quit without changing the user's saved choice.
+    func shutDown() {
         // If a short click is in flight, restore its down before removing the tap.
         if let pendingDown { replay(pendingDown) }
         pendingDown = nil
         cancelHold()
-        dismiss()
+        dismiss(animated: false)
         consumeUntilUp = false
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
         tap = nil
         runLoopSource = nil
         isEnabled = false
-        status = "Gesto desativado. O botão direito funciona normalmente."
     }
 
     func openAccessibilitySettings() {
@@ -165,8 +191,8 @@ final class GestureController: ObservableObject {
                 dismiss()
                 consumeUntilUp = false
                 if let chosen {
-                    // Finish consuming the release and closing the panel before
-                    // asking Launch Services to activate the selected app.
+                    // Consume the release and start the exit before activating
+                    // the selected app; activation does not wait for the fade.
                     DispatchQueue.main.async { [weak self] in
                         guard let self else { return }
                         self.model.activate(chosen) { [weak self] error in
@@ -215,7 +241,7 @@ final class GestureController: ObservableObject {
     }
 
     private func show(at point: CGPoint) {
-        dismiss()
+        dismiss(animated: false)
         model.refresh()
         guard !model.apps.isEmpty else { return }
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
@@ -239,7 +265,20 @@ final class GestureController: ObservableObject {
         selectionOrigin = point
         didMoveForSelection = false
         selection.id = nil
+        // Lay out the compact, transparent state reset by dismiss(). The hosting
+        // view is reused, so onAppear alone would not replay the entrance.
+        panel?.contentView?.layoutSubtreeIfNeeded()
         panel?.orderFrontRegardless()
+        let generation = presentationGeneration
+        // Start after the initial compact, transparent state has been laid out.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.wheelIsOpen, self.presentationGeneration == generation else { return }
+            let animation: Animation = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+                ? .easeOut(duration: 0.10) : .spring(duration: 0.22, bounce: 0.12)
+            withAnimation(animation) {
+                self.selection.isPresented = true
+            }
+        }
     }
 
     private func updateSelection(at point: CGPoint) {
@@ -256,12 +295,37 @@ final class GestureController: ObservableObject {
         if selection.id != id { selection.id = id }
     }
 
-    private func dismiss() {
+    private func dismiss(animated: Bool = true) {
         previewTimer?.invalidate()
         previewTimer = nil
-        panel?.orderOut(nil)
+
+        if !animated {
+            presentationGeneration += 1
+            panel?.orderOut(nil)
+            wheelIsOpen = false
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                selection.isPresented = false
+                selection.id = nil
+            }
+            return
+        }
+
+        guard wheelIsOpen else { return }
         wheelIsOpen = false
-        selection.id = nil
+        presentationGeneration += 1
+        let generation = presentationGeneration
+        let duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0.10 : 0.14
+        // Keep the last selection visible during the exit. An earlier completion
+        // must never hide a wheel that has already been opened again.
+        withAnimation(.easeIn(duration: duration), completionCriteria: .removed) {
+            selection.isPresented = false
+        } completion: { [weak self] in
+            guard let self, self.presentationGeneration == generation, !self.wheelIsOpen else { return }
+            self.panel?.orderOut(nil)
+            self.selection.id = nil
+        }
     }
 
     private func cancelHold() {
@@ -273,23 +337,27 @@ final class GestureController: ObservableObject {
         cancelHold()
         consumeUntilUp = consumeUntilUp || pendingDown != nil
         pendingDown = nil
-        dismiss()
+        dismiss(animated: false)
     }
 
-    @objc private func willTerminate() { stop() }
+    @objc private func willTerminate() { shutDown() }
 }
 
 @MainActor
 private final class WheelSelection: ObservableObject {
     @Published var id: pid_t?
+    @Published var isPresented = false
 }
 
 private struct FloatingWheel: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
     @ObservedObject var selection: WheelSelection
 
     var body: some View {
         WheelView(model: model, selectedID: selection.id)
             .preferredColorScheme(.dark)
+            .scaleEffect(reduceMotion || selection.isPresented ? 1 : 0.90)
+            .opacity(selection.isPresented ? 1 : 0)
     }
 }

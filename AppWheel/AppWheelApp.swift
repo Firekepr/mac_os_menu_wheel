@@ -17,7 +17,7 @@ struct AppWheelApp: App {
             Button("Prévia flutuante") { gesture.preview() }
             Divider()
             Button("Sair do AppWheel") {
-                gesture.stop()
+                gesture.shutDown()
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")

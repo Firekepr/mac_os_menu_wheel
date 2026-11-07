@@ -39,6 +39,41 @@ MainActor.assumeIsolated {
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = RunningApps(favorites: AppFavorites(defaults: defaults), observesFavorites: false)
+    for diameter in [260.0, 380.0, 520.0] {
+        state.diameter = diameter
+        let center = WheelActionGeometry.outerSize(diameter: diameter) / 2
+        let point = CGPoint(x: center + WheelGeometry.deadZone * diameter / WheelGeometry.size / 2, y: center)
+        state.select("editor", canRevealClose: true)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+        precondition(state.closeTargetID == "editor")
+        state.update(at: point, slots: model.slots, allowsBeyondEdge: true)
+        precondition(state.closeTargetID == nil && state.id == nil && !state.isCloseHovered,
+                     "Returning to center retained the close sector")
+        state.select("editor", canRevealClose: true)
+        state.update(at: point, slots: model.slots, allowsBeyondEdge: false)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+        precondition(state.closeTargetID == nil, "The center did not cancel the pending dwell")
+    }
+    let editor = WheelApp(application: nil, favorite: FavoriteApp(id: "editor", name: "Editor", path: "/fake.app", position: 0))
+    let sparseSlots = (0..<8).map { WheelSlot(id: $0, app: $0 == 0 ? editor : nil) }
+    for diameter in [260.0, 380.0, 520.0] {
+        state.diameter = diameter
+        let center = WheelActionGeometry.outerSize(diameter: diameter) / 2
+        let emptyPoint = CGPoint(x: center + diameter * 0.35, y: center)
+        state.select("editor", canRevealClose: true)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+        precondition(state.closeTargetID == "editor")
+        let gap = CGPoint(x: center, y: center - diameter / 2 - diameter * 5 / WheelGeometry.size)
+        state.update(at: gap, slots: sparseSlots, allowsBeyondEdge: true)
+        precondition(state.closeTargetID == "editor", "The gap lost its action")
+        state.update(at: emptyPoint, slots: sparseSlots, allowsBeyondEdge: true)
+        precondition(state.closeTargetID == nil && state.id == nil && !state.isCloseHovered,
+                     "An empty sector retained the close action")
+        state.select("editor", canRevealClose: true)
+        state.update(at: emptyPoint, slots: sparseSlots, allowsBeyondEdge: false)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+        precondition(state.closeTargetID == nil, "An empty sector left the dwell timer alive")
+    }
     let app = WheelApp(application: NSRunningApplication.current)
     var requests = 0
     precondition(model.requestQuit(app, isRunning: { _ in true }, terminate: { _ in requests += 1; return true }) == nil)

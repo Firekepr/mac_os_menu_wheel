@@ -46,9 +46,9 @@ final class WheelInteraction: ObservableObject {
 
     func reset() {
         cancelDwell()
-        id = nil
-        closeTargetID = nil
-        isCloseHovered = false
+        if id != nil { id = nil }
+        if closeTargetID != nil { closeTargetID = nil }
+        if isCloseHovered { isCloseHovered = false }
     }
 
     private func cancelDwell() {
@@ -56,22 +56,32 @@ final class WheelInteraction: ObservableObject {
         dwellTimer = nil
     }
 
-    func update(at point: CGPoint, model: RunningApps, allowsBeyondEdge: Bool) {
-        let targetIndex = model.slots.firstIndex { $0.app?.id == closeTargetID && closeTargetID != nil }
-        let target = targetIndex.flatMap { model.slots[$0].app }
+    func update(at point: CGPoint, slots: [WheelSlot], allowsBeyondEdge: Bool) {
+        let center = WheelActionGeometry.outerSize(diameter: diameter) / 2
+        let deadZone = WheelGeometry.deadZone * diameter / WheelGeometry.size
+        if hypot(point.x - center, point.y - center) <= deadZone {
+            reset()
+            return
+        }
+        let targetIndex = slots.firstIndex { $0.app?.id == closeTargetID && closeTargetID != nil }
+        let target = targetIndex.flatMap { slots[$0].app }
         if target?.application.map({ !$0.isTerminated }) == true,
            let targetIndex,
-           WheelActionGeometry.closePath(diameter: diameter, index: targetIndex, count: model.slots.count).cgPath.contains(point) {
+           WheelActionGeometry.closePath(diameter: diameter, index: targetIndex, count: slots.count).cgPath.contains(point) {
             hoverClose()
             return
         }
         let inset = WheelActionGeometry.inset(diameter: diameter)
         let local = CGPoint(x: point.x - inset, y: point.y - inset)
-        let index = WheelGeometry.index(at: local, count: model.slots.count,
+        let index = WheelGeometry.index(at: local, count: slots.count,
                                         allowsBeyondEdge: allowsBeyondEdge, diameter: diameter)
-        let app = index.flatMap { model.slots[$0].app }
-        let center = diameter / 2
-        let insideWheel = hypot(local.x - center, local.y - center) <= center
+        let app = index.flatMap { slots[$0].app }
+        let wheelCenter = diameter / 2
+        let insideWheel = hypot(local.x - wheelCenter, local.y - wheelCenter) <= wheelCenter
+        if app == nil && (index != nil || insideWheel) {
+            reset()
+            return
+        }
         select(app?.id, canRevealClose: insideWheel && app?.application.map({ !$0.isTerminated }) == true)
     }
 }

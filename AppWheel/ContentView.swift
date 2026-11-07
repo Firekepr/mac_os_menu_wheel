@@ -120,7 +120,7 @@ struct ContentView: View {
 
     private func select(at point: CGPoint) {
         interaction.diameter = previewDiameter
-        interaction.update(at: point, model: model, allowsBeyondEdge: false)
+        interaction.update(at: point, slots: model.slots, allowsBeyondEdge: false)
     }
 }
 

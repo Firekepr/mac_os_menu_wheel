@@ -2,9 +2,12 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var gesture: GestureController
+    @ObservedObject var preferences: WheelPreferences
     @StateObject private var model = RunningApps()
     @State private var selectedID: pid_t?
     @State private var showsExceptions = false
+
+    private var previewDiameter: CGFloat { min(CGFloat(preferences.wheelDiameter), 400) }
 
     private var selected: WheelApp? {
         model.apps.first { $0.id == selectedID }
@@ -20,6 +23,8 @@ struct ContentView: View {
             }
 
             WheelView(model: model, selectedID: selectedID)
+                .scaleEffect(previewDiameter / WheelGeometry.size)
+                .frame(width: previewDiameter, height: previewDiameter)
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let point): select(at: point)
@@ -35,7 +40,7 @@ struct ContentView: View {
                 Text("Prévia interativa")
                     .font(.headline)
                 Text("Passe o mouse pela roda e clique para trocar de app.")
-                Text("No gesto global: segure por 300 ms, aponte e solte. Volte ao centro ou use Esc para cancelar.")
+                Text(preferences.gestureHint + " Centro ou Esc para cancelar.")
                     .font(.caption)
             }
             .foregroundStyle(.secondary)
@@ -63,6 +68,7 @@ struct ContentView: View {
                     model.refresh()
                     selectedID = nil
                 }
+                SettingsLink { Label("Preferências", systemImage: "slider.horizontal.3") }
                 Button("Exceções por aplicativo", systemImage: "hand.raised") {
                     showsExceptions = true
                 }
@@ -98,13 +104,13 @@ struct ContentView: View {
 
 
     private func select(at point: CGPoint) {
-        selectedID = WheelGeometry.index(at: point, count: model.apps.count, allowsBeyondEdge: false)
+        selectedID = WheelGeometry.index(at: point, count: model.apps.count, allowsBeyondEdge: false, diameter: previewDiameter)
             .map { model.apps[$0].id }
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView().environmentObject(GestureController())
+        ContentView(preferences: WheelPreferences()).environmentObject(GestureController())
     }
 }

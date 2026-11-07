@@ -12,6 +12,7 @@ final class GestureController: ObservableObject {
     @Published private(set) var isEnabled = false
     @Published private(set) var needsPermission = false
     @Published private(set) var status = "Ative o gesto para usar a roda sobre outros aplicativos."
+    let preferences: WheelPreferences
     let exceptions: AppExceptions
 
     private let model = RunningApps()
@@ -24,20 +25,26 @@ final class GestureController: ObservableObject {
     private var pendingDown: CGEvent?
     private var wheelIsOpen = false
     private var consumeUntilUp = false
-    private var bypassRightButton = false
+    private var bypassTriggerButton = false
+    private var activePressButton: MouseTriggerButton?
+    private var presentedDiameter: CGFloat = WheelGeometry.size
     private var selectionOrigin = CGPoint.zero
     private var didMoveForSelection = false
     private var presentationGeneration = 0
     private let replayMarker: Int64 = 0x415050574845454C
     private let defaults: UserDefaults
     private let frontmostBundleIdentifier: () -> String?
+    private let postEvent: (CGEvent) -> Void
     private let enabledPreferenceKey = "globalGestureEnabled"
     private var didRequestPermission = false
 
     init(defaults: UserDefaults = .standard,
-         frontmostBundleIdentifier: @escaping () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }) {
+         frontmostBundleIdentifier: @escaping () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier },
+         postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cgSessionEventTap) }) {
         self.defaults = defaults
         self.frontmostBundleIdentifier = frontmostBundleIdentifier
+        self.postEvent = postEvent
+        self.preferences = WheelPreferences(defaults: defaults)
         self.exceptions = AppExceptions(defaults: defaults)
         NotificationCenter.default.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
@@ -72,7 +79,9 @@ final class GestureController: ObservableObject {
             }
             return
         }
-        let events: [CGEventType] = [.rightMouseDown, .rightMouseUp, .rightMouseDragged, .mouseMoved, .keyDown, .leftMouseDown]
+        let events: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged,
+                                     .rightMouseDown, .rightMouseUp, .rightMouseDragged,
+                                     .otherMouseDown, .otherMouseUp, .otherMouseDragged, .mouseMoved, .keyDown]
         let mask = events.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         let callback: CGEventTapCallBack = { _, type, event, context in
             guard let context else { return Unmanaged.passUnretained(event) }
@@ -101,14 +110,14 @@ final class GestureController: ObservableObject {
         CGEvent.tapEnable(tap: eventTap, enable: true)
         isEnabled = true
         needsPermission = false
-        status = "Gesto ativo · segure o botão direito por 300 ms, aponte e solte."
+        status = "Gesto ativo. As preferências são aplicadas a cada novo gesto."
     }
 
     func stop() {
         defaults.set(false, forKey: enabledPreferenceKey)
         shutDown()
         needsPermission = false
-        status = "Gesto desativado. O botão direito funciona normalmente."
+        status = "Gesto desativado. O mouse funciona normalmente."
     }
 
     /// Release the capture on quit without changing the user's saved choice.
@@ -119,7 +128,8 @@ final class GestureController: ObservableObject {
         cancelHold()
         dismiss(animated: false)
         consumeUntilUp = false
-        bypassRightButton = false
+        bypassTriggerButton = false
+        activePressButton = nil
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
         tap = nil
@@ -150,19 +160,22 @@ final class GestureController: ObservableObject {
         }
         guard event.getIntegerValueField(.eventSourceUserData) != replayMarker else { return unchanged }
 
-        switch type {
-        case .rightMouseDown:
+        // Freeze the button for a complete press, including an excluded app or
+        // an early drag. A preference change must never split a down/up pair.
+        let button = activePressButton ?? preferences.triggerButton
+        if button.matches(event, type: type, phase: button.down) {
+            activePressButton = button
             dismiss()
             cancelHold()
             pendingDown = nil
             consumeUntilUp = false
-            bypassRightButton = exceptions.contains(bundleIdentifier: frontmostBundleIdentifier())
+            bypassTriggerButton = exceptions.contains(bundleIdentifier: frontmostBundleIdentifier())
             // Decide once for the whole press. Excluded apps receive the original
             // down, drags and up immediately, without delaying or replaying them.
-            if bypassRightButton { return unchanged }
+            if bypassTriggerButton { return unchanged }
             guard let copy = event.copy() else { return unchanged }
             pendingDown = copy
-            holdTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+            holdTimer = Timer.scheduledTimer(withTimeInterval: preferences.holdDelay, repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self, let down = self.pendingDown else { return }
                     self.pendingDown = nil
@@ -172,9 +185,9 @@ final class GestureController: ObservableObject {
                 }
             }
             return nil
-
-        case .rightMouseDragged:
-            if bypassRightButton { return unchanged }
+        }
+        if button.matches(event, type: type, phase: button.drag) {
+            if bypassTriggerButton { return unchanged }
             if let down = pendingDown, hypot(event.location.x - down.location.x, event.location.y - down.location.y) > 8 {
                 // An early drag belongs to the underlying app, including its original down.
                 cancelHold()
@@ -189,10 +202,11 @@ final class GestureController: ObservableObject {
                 return nil
             }
             return unchanged
-
-        case .rightMouseUp:
-            if bypassRightButton {
-                bypassRightButton = false
+        }
+        if button.matches(event, type: type, phase: button.up) {
+            defer { activePressButton = nil }
+            if bypassTriggerButton {
+                bypassTriggerButton = false
                 return unchanged
             }
             cancelHold()
@@ -222,7 +236,9 @@ final class GestureController: ObservableObject {
                 return nil
             }
             return unchanged
+        }
 
+        switch type {
         case .mouseMoved:
             if wheelIsOpen { updateSelection(at: appKitPoint(event.location)) }
             return unchanged
@@ -238,7 +254,7 @@ final class GestureController: ObservableObject {
             }
             return unchanged
 
-        case .leftMouseDown:
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             cancelForEnvironmentChange()
             return unchanged
 
@@ -250,7 +266,7 @@ final class GestureController: ObservableObject {
     private func replay(_ event: CGEvent) {
         guard let copy = event.copy() else { return }
         copy.setIntegerValueField(.eventSourceUserData, value: replayMarker)
-        copy.post(tap: .cgSessionEventTap)
+        postEvent(copy)
     }
 
     private func appKitPoint(_ point: CGPoint) -> CGPoint {
@@ -264,7 +280,8 @@ final class GestureController: ObservableObject {
         guard !model.apps.isEmpty else { return }
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let screen else { return }
-        let frame = WheelGeometry.panelFrame(around: point, visibleFrame: screen.visibleFrame)
+        presentedDiameter = min(CGFloat(preferences.wheelDiameter), screen.visibleFrame.width, screen.visibleFrame.height)
+        let frame = WheelGeometry.panelFrame(around: point, visibleFrame: screen.visibleFrame, diameter: presentedDiameter)
         if panel == nil {
             let window = WheelPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                                     backing: .buffered, defer: false)
@@ -278,6 +295,7 @@ final class GestureController: ObservableObject {
             window.contentView = NSHostingView(rootView: FloatingWheel(model: model, selection: selection))
             panel = window
         }
+        selection.diameter = presentedDiameter
         panel?.setFrame(frame, display: true)
         wheelIsOpen = true
         selectionOrigin = point
@@ -308,7 +326,7 @@ final class GestureController: ObservableObject {
         }
         guard didMoveForSelection else { selection.id = nil; return }
         let local = CGPoint(x: point.x - panel.frame.minX, y: panel.frame.maxY - point.y)
-        let id = WheelGeometry.index(at: local, count: model.apps.count, allowsBeyondEdge: true)
+        let id = WheelGeometry.index(at: local, count: model.apps.count, allowsBeyondEdge: true, diameter: presentedDiameter)
             .map { model.apps[$0].id }
         if selection.id != id { selection.id = id }
     }
@@ -365,6 +383,7 @@ final class GestureController: ObservableObject {
 private final class WheelSelection: ObservableObject {
     @Published var id: pid_t?
     @Published var isPresented = false
+    @Published var diameter: CGFloat = WheelGeometry.size
 }
 
 private struct FloatingWheel: View {
@@ -374,6 +393,8 @@ private struct FloatingWheel: View {
 
     var body: some View {
         WheelView(model: model, selectedID: selection.id)
+            .scaleEffect(selection.diameter / WheelGeometry.size)
+            .frame(width: selection.diameter, height: selection.diameter)
             .preferredColorScheme(.dark)
             .scaleEffect(reduceMotion || selection.isPresented ? 1 : 0.90)
             .opacity(selection.isPresented ? 1 : 0)

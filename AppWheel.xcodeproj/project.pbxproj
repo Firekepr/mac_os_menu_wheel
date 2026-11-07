@@ -4,6 +4,8 @@
  classes = {};
  objectVersion = 56;
  objects = {
+  B00000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WheelPreferences.swift; sourceTree = "<group>";};
+  C00000000000000000000004 = {isa = PBXBuildFile; fileRef = B00000000000000000000004;};
   B00000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppExceptions.swift; sourceTree = "<group>";};
   C00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000003;};
   B00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureController.swift; sourceTree = "<group>";};
@@ -14,11 +16,11 @@
   C00000000000000000000000 = {isa = PBXBuildFile; fileRef = B00000000000000000000000;};
   A00000000000000000000001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2640;}; buildConfigurationList = A00000000000000000000020; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A00000000000000000000002; productRefGroup = A00000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000005);};
   A00000000000000000000002 = {isa = PBXGroup; children = (A00000000000000000000003, A00000000000000000000004); sourceTree = "<group>";};
-  A00000000000000000000003 = {isa = PBXGroup; children = (B00000000000000000000003, B00000000000000000000000, B00000000000000000000001, B00000000000000000000002, A00000000000000000000010, A00000000000000000000011, A00000000000000000000012); path = AppWheel; sourceTree = "<group>";};
+  A00000000000000000000003 = {isa = PBXGroup; children = (B00000000000000000000004, B00000000000000000000003, B00000000000000000000000, B00000000000000000000001, B00000000000000000000002, A00000000000000000000010, A00000000000000000000011, A00000000000000000000012); path = AppWheel; sourceTree = "<group>";};
   A00000000000000000000004 = {isa = PBXGroup; children = (A00000000000000000000006); name = Products; sourceTree = "<group>";};
   A00000000000000000000005 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000021; buildPhases = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009); buildRules = (); dependencies = (); name = AppWheel; productName = AppWheel; productReference = A00000000000000000000006; productType = "com.apple.product-type.application";};
   A00000000000000000000006 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppWheel.app; sourceTree = BUILT_PRODUCTS_DIR;};
-  A00000000000000000000007 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C00000000000000000000003, C00000000000000000000000, C00000000000000000000001, C00000000000000000000002, A00000000000000000000013, A00000000000000000000014, A00000000000000000000015); runOnlyForDeploymentPostprocessing = 0;};
+  A00000000000000000000007 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C00000000000000000000004, C00000000000000000000003, C00000000000000000000000, C00000000000000000000001, C00000000000000000000002, A00000000000000000000013, A00000000000000000000014, A00000000000000000000015); runOnlyForDeploymentPostprocessing = 0;};
   A00000000000000000000008 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
   A00000000000000000000009 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
   A00000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppWheelApp.swift; sourceTree = "<group>";};

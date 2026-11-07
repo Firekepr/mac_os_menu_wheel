@@ -17,7 +17,7 @@ final class GestureController: ObservableObject {
     let exceptions: AppExceptions
 
     private let model: RunningApps
-    private let selection = WheelSelection()
+    private let selection = WheelInteraction()
     private var panel: WheelPanel?
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -223,10 +223,18 @@ final class GestureController: ObservableObject {
             }
             if consumeUntilUp {
                 if wheelIsOpen { updateSelection(at: appKitPoint(event.location)) }
+                let closeTarget = wheelIsOpen && selection.isCloseHovered
+                    ? model.apps.first { $0.id == selection.closeTargetID } : nil
                 let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
                 dismiss()
                 consumeUntilUp = false
-                if let chosen {
+                if let closeTarget {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self else { return }
+                        let error = self.model.requestQuit(closeTarget)
+                        self.status = error ?? "Encerramento solicitado para \(closeTarget.name)."
+                    }
+                } else if let chosen {
                     // Consume the release and start the exit before activating
                     // the selected app; activation does not wait for the fade.
                     DispatchQueue.main.async { [weak self] in
@@ -284,8 +292,8 @@ final class GestureController: ObservableObject {
         guard !model.apps.isEmpty else { return }
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let screen else { return }
-        presentedDiameter = min(CGFloat(preferences.wheelDiameter), screen.visibleFrame.width, screen.visibleFrame.height)
-        let frame = WheelGeometry.panelFrame(around: point, visibleFrame: screen.visibleFrame, diameter: presentedDiameter)
+        presentedDiameter = WheelActionGeometry.fittingDiameter(CGFloat(preferences.wheelDiameter), available: screen.visibleFrame.size)
+        let frame = WheelActionGeometry.panelFrame(around: point, diameter: presentedDiameter, visibleFrame: screen.visibleFrame)
         if panel == nil {
             let window = WheelPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                                     backing: .buffered, defer: false)
@@ -304,7 +312,7 @@ final class GestureController: ObservableObject {
         wheelIsOpen = true
         selectionOrigin = point
         didMoveForSelection = false
-        selection.id = nil
+        selection.reset()
         // Lay out the compact, transparent state reset by dismiss(). The hosting
         // view is reused, so onAppear alone would not replay the entrance.
         panel?.contentView?.layoutSubtreeIfNeeded()
@@ -328,14 +336,13 @@ final class GestureController: ObservableObject {
         if hypot(point.x - selectionOrigin.x, point.y - selectionOrigin.y) > 12 {
             didMoveForSelection = true
         }
-        guard didMoveForSelection else { selection.id = nil; return }
+        guard didMoveForSelection else { selection.select(nil, canRevealClose: false); return }
         let local = CGPoint(x: point.x - panel.frame.minX, y: panel.frame.maxY - point.y)
-        let id = WheelGeometry.index(at: local, count: model.slots.count, allowsBeyondEdge: true, diameter: presentedDiameter)
-            .flatMap { model.slots[$0].app?.id }
-        if selection.id != id { selection.id = id }
+        selection.update(at: local, model: model, allowsBeyondEdge: true)
     }
 
     private func dismiss(animated: Bool = true) {
+        selection.select(selection.id, canRevealClose: false)
         previewTimer?.invalidate()
         previewTimer = nil
 
@@ -347,7 +354,7 @@ final class GestureController: ObservableObject {
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 selection.isPresented = false
-                selection.id = nil
+                selection.reset()
             }
             return
         }
@@ -364,7 +371,7 @@ final class GestureController: ObservableObject {
         } completion: { [weak self] in
             guard let self, self.presentationGeneration == generation, !self.wheelIsOpen else { return }
             self.panel?.orderOut(nil)
-            self.selection.id = nil
+            self.selection.reset()
         }
     }
 
@@ -383,22 +390,13 @@ final class GestureController: ObservableObject {
     @objc private func willTerminate() { shutDown() }
 }
 
-@MainActor
-private final class WheelSelection: ObservableObject {
-    @Published var id: String?
-    @Published var isPresented = false
-    @Published var diameter: CGFloat = WheelGeometry.size
-}
-
 private struct FloatingWheel: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
-    @ObservedObject var selection: WheelSelection
+    @ObservedObject var selection: WheelInteraction
 
     var body: some View {
-        WheelView(model: model, selectedID: selection.id)
-            .scaleEffect(selection.diameter / WheelGeometry.size)
-            .frame(width: selection.diameter, height: selection.diameter)
+        WheelWithActions(model: model, interaction: selection)
             .preferredColorScheme(.dark)
             .scaleEffect(reduceMotion || selection.isPresented ? 1 : 0.90)
             .opacity(selection.isPresented ? 1 : 0)

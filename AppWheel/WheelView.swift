@@ -107,6 +107,9 @@ struct WheelView: View {
         .accessibilityActions {
             ForEach(model.apps) { app in
                 Button("Abrir \(app.name)") { model.activate(app) }
+                if app.application?.isTerminated == false {
+                    Button("Fechar \(app.name)") { model.requestQuit(app) }
+                }
             }
         }
     }

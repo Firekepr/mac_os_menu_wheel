@@ -69,6 +69,24 @@ final class RunningApps: ObservableObject {
         }
     }
 
+    @discardableResult
+    func requestQuit(_ app: WheelApp,
+                     isRunning: (NSRunningApplication) -> Bool = { !$0.isTerminated },
+                     terminate: (NSRunningApplication) -> Bool = { $0.terminate() }) -> String? {
+        guard let running = app.application, isRunning(running) else {
+            let message = "\(app.name) já está fechado."
+            activationError = message
+            return message
+        }
+        guard terminate(running) else {
+            let message = "Não foi possível solicitar o encerramento de \(app.name)."
+            activationError = message
+            return message
+        }
+        activationError = nil
+        return nil
+    }
+
     func activate(_ app: WheelApp, completion: ((String?) -> Void)? = nil) {
         activationError = nil
         guard app.favorite?.visibility == .always || app.application.map({ !$0.isTerminated }) == true,

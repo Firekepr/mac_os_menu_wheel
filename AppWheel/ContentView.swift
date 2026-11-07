@@ -4,7 +4,7 @@ struct ContentView: View {
     @EnvironmentObject private var gesture: GestureController
     @ObservedObject var preferences: WheelPreferences
     @StateObject private var model: RunningApps
-    @State private var selectedID: String?
+    @StateObject private var interaction = WheelInteraction()
     @State private var showsExceptions = false
 
     init(preferences: WheelPreferences, favorites: AppFavorites? = nil) {
@@ -12,10 +12,10 @@ struct ContentView: View {
         _model = StateObject(wrappedValue: RunningApps(favorites: favorites))
     }
 
-    private var previewDiameter: CGFloat { min(CGFloat(preferences.wheelDiameter), 400) }
+    private var previewDiameter: CGFloat { min(CGFloat(preferences.wheelDiameter), 280) }
 
     private var selected: WheelApp? {
-        model.apps.first { $0.id == selectedID }
+        model.apps.first { $0.id == interaction.id }
     }
 
     var body: some View {
@@ -27,24 +27,26 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            WheelView(model: model, selectedID: selectedID)
-                .scaleEffect(previewDiameter / WheelGeometry.size)
-                .frame(width: previewDiameter, height: previewDiameter)
+            WheelWithActions(model: model, interaction: interaction)
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let point): select(at: point)
-                    case .ended: selectedID = nil
+                    case .ended: interaction.reset()
                     }
                 }
                 .onTapGesture { location in
                     select(at: location)
-                    if let selected { model.activate(selected) }
+                    if interaction.isCloseHovered,
+                       let target = model.apps.first(where: { $0.id == interaction.closeTargetID }) {
+                        model.requestQuit(target)
+                    } else if let selected { model.activate(selected) }
+                    interaction.reset()
                 }
 
             VStack(spacing: 7) {
                 Text("Prévia interativa")
                     .font(.headline)
-                Text("Passe o mouse pela roda e clique para trocar de app.")
+                Text("Clique para trocar de app. Pause sobre um app para revelar a ação de fechar.")
                 Text(preferences.gestureHint + " Centro ou Esc para cancelar.")
                     .font(.caption)
             }
@@ -71,7 +73,7 @@ struct ContentView: View {
             HStack {
                 Button("Atualizar aplicativos", systemImage: "arrow.clockwise") {
                     model.refresh()
-                    selectedID = nil
+                    interaction.reset()
                 }
                 SettingsLink { Label("Preferências", systemImage: "slider.horizontal.3") }
                 Button("Exceções por aplicativo", systemImage: "hand.raised") {
@@ -95,6 +97,11 @@ struct ContentView: View {
         }
         .padding(32)
         .frame(width: 640, height: 800)
+        .onAppear { interaction.diameter = previewDiameter }
+        .onChange(of: previewDiameter) { _, diameter in
+            interaction.reset()
+            interaction.diameter = diameter
+        }
         .sheet(isPresented: $showsExceptions) {
             AppExceptionsView(exceptions: gesture.exceptions)
         }
@@ -109,8 +116,8 @@ struct ContentView: View {
 
 
     private func select(at point: CGPoint) {
-        selectedID = WheelGeometry.index(at: point, count: model.slots.count, allowsBeyondEdge: false, diameter: previewDiameter)
-            .flatMap { model.slots[$0].app?.id }
+        interaction.diameter = previewDiameter
+        interaction.update(at: point, model: model, allowsBeyondEdge: false)
     }
 }
 

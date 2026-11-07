@@ -4,9 +4,24 @@ struct WheelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
     let selectedID: String?
+    @State private var memory: AppMemoryUsage?
+    @State private var memoryPID: pid_t?
+    @State private var isLoadingMemory = false
 
     private var selected: WheelApp? {
         model.apps.first { $0.id == selectedID }
+    }
+
+    private var selectedPID: pid_t? {
+        guard let application = selected?.application, !application.isTerminated else { return nil }
+        return application.processIdentifier
+    }
+
+    private var memoryLabel: String? {
+        guard selectedPID != nil else { return nil }
+        guard memoryPID == selectedPID else { return "RAM: consultando…" }
+        if let memory { return "RAM ≈ \(memory.formatted)" }
+        return isLoadingMemory ? "RAM: consultando…" : "RAM indisponível"
     }
 
     var body: some View {
@@ -89,6 +104,15 @@ struct WheelView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .contentTransition(.opacity)
+                if let memoryLabel {
+                    Text(memoryLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .help(memory?.help ?? "Consumo de memória do aplicativo selecionado.")
+                }
             }
             .padding(8)
             .frame(width: 126, height: 126)
@@ -103,7 +127,29 @@ struct WheelView: View {
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.24, bounce: 0.15), value: selectedID)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Roda de aplicativos")
-        .accessibilityValue(selected?.name ?? "Nenhum aplicativo selecionado")
+        .accessibilityValue([selected?.name ?? "Nenhum aplicativo selecionado", memoryLabel].compactMap { $0 }.joined(separator: ", "))
+        .task(id: selectedPID) {
+            memory = nil
+            memoryPID = selectedPID
+            isLoadingMemory = true
+            guard let pid = selectedPID else { isLoadingMemory = false; return }
+            let bundlePath = selected?.application?.bundleURL?.path
+            while !Task.isCancelled {
+                let worker = Task.detached(priority: .utility) {
+                    AppMemory.sample(root: pid, bundlePath: bundlePath)
+                }
+                let sample = await withTaskCancellationHandler {
+                    await worker.value
+                } onCancel: {
+                    worker.cancel()
+                }
+                guard !Task.isCancelled else { return }
+                memory = sample
+                isLoadingMemory = false
+                do { try await Task.sleep(for: .seconds(3)) }
+                catch { return }
+            }
+        }
         .accessibilityActions {
             ForEach(model.apps) { app in
                 Button("Abrir \(app.name)") { model.activate(app) }

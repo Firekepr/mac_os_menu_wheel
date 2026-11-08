@@ -35,12 +35,14 @@ enum AppMemory {
                 result.insert(process.id)
             }
         }
-        var changed = true
-        while changed {
-            changed = false
-            for process in processes where !result.contains(process.id) && result.contains(process.parentID) {
-                result.insert(process.id)
-                changed = true
+        let children = Dictionary(grouping: processes, by: \.parentID)
+        var queue = Array(result)
+        var index = 0
+        while index < queue.count {
+            let parent = queue[index]
+            index += 1
+            for process in children[parent] ?? [] {
+                if result.insert(process.id).inserted { queue.append(process.id) }
             }
         }
         return result
@@ -57,6 +59,9 @@ enum AppMemory {
             return AppMemoryUsage(bytes: rootBytes, processCount: 1, isPartial: true)
         }
         var processes: [Process] = []
+        processes.reserveCapacity(min(Int(count), capacity))
+        // Reuse the path buffer instead of allocating it for every process.
+        var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         for pid in pids.prefix(min(Int(count), capacity)) where pid > 0 {
             guard !Task.isCancelled else { return nil }
             var info = proc_bsdinfo()
@@ -64,7 +69,6 @@ enum AppMemory {
             guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size,
                   info.pbi_uid == getuid() else { continue }
             // PROC_PIDPATHINFO_MAXSIZE is a C macro not imported into Swift.
-            var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
             let length = path.withUnsafeMutableBytes { buffer in
                 proc_pidpath(pid, buffer.baseAddress, UInt32(buffer.count))
             }

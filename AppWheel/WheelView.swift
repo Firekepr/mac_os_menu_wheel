@@ -5,6 +5,7 @@ struct WheelView: View {
     @ObservedObject var model: RunningApps
     let selectedID: String?
     var isOpenMainWindowHovered = false
+    var isActive = true
     @State private var memory: AppMemoryUsage?
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
@@ -14,6 +15,7 @@ struct WheelView: View {
     }
 
     private var selectedPID: pid_t? {
+        guard isActive else { return nil }
         guard let application = selected?.application, !application.isTerminated else { return nil }
         return application.processIdentifier
     }
@@ -88,7 +90,7 @@ struct WheelView: View {
                                     .background(Color.accentColor, in: Circle())
                             }
                         }
-                        .modifier(SelectedIconFloat(isSelected: active))
+                        .modifier(SelectedIconFloat(isSelected: active && isActive))
                         .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
                 } else {
                     Circle().fill(.secondary.opacity(0.25)).frame(width: 5, height: 5)
@@ -156,6 +158,10 @@ struct WheelView: View {
             isLoadingMemory = true
             guard let pid = selectedPID else { isLoadingMemory = false; return }
             let bundlePath = selected?.application?.bundleURL?.path
+            // Sweeping across icons should not enumerate every process for
+            // every transient selection. Cancellation stops this debounce.
+            do { try await Task.sleep(for: .milliseconds(150)) }
+            catch { return }
             while !Task.isCancelled {
                 let worker = Task.detached(priority: .utility) {
                     AppMemory.sample(root: pid, bundlePath: bundlePath)

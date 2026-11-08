@@ -12,7 +12,11 @@ final class WheelInteraction: ObservableObject {
     @Published private(set) var isCloseHovered = false
     @Published private(set) var isOpenMainWindowHovered = false
     @Published var isPresented = false
-    @Published var diameter: CGFloat = WheelGeometry.size
+    @Published private var storedDiameter: CGFloat = WheelGeometry.size
+    var diameter: CGFloat {
+        get { storedDiameter }
+        set { if storedDiameter != newValue { storedDiameter = newValue } }
+    }
     private var dwellTimer: Timer?
     private let dwellDelay: TimeInterval
 
@@ -138,6 +142,7 @@ private struct CloseActionSector: Shape {
 struct WheelWithActions: View {
     @ObservedObject var model: RunningApps
     @ObservedObject var interaction: WheelInteraction
+    var isActive = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var closeIndex: Int? {
         model.slots.firstIndex { slot in
@@ -150,7 +155,8 @@ struct WheelWithActions: View {
         let diameter = interaction.diameter
         let side = WheelActionGeometry.outerSize(diameter: diameter)
         ZStack {
-            WheelView(model: model, selectedID: interaction.id, isOpenMainWindowHovered: interaction.isOpenMainWindowHovered)
+            WheelView(model: model, selectedID: interaction.id, isOpenMainWindowHovered: interaction.isOpenMainWindowHovered,
+                      isActive: isActive)
                 .scaleEffect(diameter / WheelGeometry.size)
                 .frame(width: diameter, height: diameter)
 

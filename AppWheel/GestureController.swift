@@ -33,8 +33,11 @@ final class GestureController: ObservableObject {
     private let selection = WheelInteraction()
     private var panel: WheelPanel?
     private var mainWindow: NSWindow?
+    private var mainWindowHasContent = false
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var movementTap: CFMachPort?
+    private var movementSource: CFRunLoopSource?
     private var holdTimer: Timer?
     private var holdPreviewPanel: WheelPanel?
     private var holdPreviewGeneration = 0
@@ -73,6 +76,8 @@ final class GestureController: ObservableObject {
                                                name: NSApplication.willTerminateNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(openMainWindow),
                                                name: .appWheelOpenMainWindow, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(mainWindowWillClose),
+                                               name: NSWindow.willCloseNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(restoreGestureIfNeeded),
                                                name: NSApplication.didBecomeActiveNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
@@ -106,7 +111,7 @@ final class GestureController: ObservableObject {
         }
         let events: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged,
                                      .  rightMouseDown, .rightMouseUp, .rightMouseDragged,
-                                     .otherMouseDown, .otherMouseUp, .otherMouseDragged, .mouseMoved, .keyDown]
+                                     .otherMouseDown, .otherMouseUp, .otherMouseDragged, .keyDown]
         let mask = events.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         let callback: CGEventTapCallBack = { _, type, event, context in
             guard let context else { return Unmanaged.passUnretained(event) }
@@ -159,6 +164,10 @@ final class GestureController: ObservableObject {
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
         tap = nil
         runLoopSource = nil
+        if let movementTap { CFMachPortInvalidate(movementTap) }
+        if let movementSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), movementSource, .commonModes) }
+        movementTap = nil
+        movementSource = nil
         isEnabled = false
     }
 
@@ -176,10 +185,13 @@ final class GestureController: ObservableObject {
                                   backing: .buffered, defer: false)
             window.title = "AppWheel"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView:
-                ContentView(preferences: preferences, favorites: favorites).environmentObject(self))
             window.center()
             mainWindow = window
+        }
+        if !mainWindowHasContent {
+            mainWindow?.contentView = NSHostingView(rootView:
+                ContentView(preferences: preferences, favorites: favorites).environmentObject(self))
+            mainWindowHasContent = true
         }
         NSApplication.shared.activate()
         mainWindow?.makeKeyAndOrderFront(nil)
@@ -374,6 +386,7 @@ final class GestureController: ObservableObject {
         // view is reused, so onAppear alone would not replay the entrance.
         panel?.contentView?.layoutSubtreeIfNeeded()
         panel?.orderFrontRegardless()
+        enableMovementTracking()
         let generation = presentationGeneration
         // Start after the initial compact, transparent state has been laid out.
         DispatchQueue.main.async { [weak self] in
@@ -399,6 +412,7 @@ final class GestureController: ObservableObject {
     }
 
     private func dismiss(animated: Bool = true) {
+        if let movementTap { CGEvent.tapEnable(tap: movementTap, enable: false) }
         selection.select(selection.id, canRevealClose: false)
         previewTimer?.invalidate()
         previewTimer = nil
@@ -481,6 +495,49 @@ final class GestureController: ObservableObject {
     }
 
     @objc private func willTerminate() { shutDown() }
+
+    @objc private func mainWindowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === mainWindow else { return }
+        // A retained NSWindow must not retain an invisible SwiftUI preview,
+        // its subscriptions, or its memory-sampling task after closing.
+        window.contentView = nil
+        mainWindowHasContent = false
+    }
+
+    private func enableMovementTracking() {
+        // Held-button motion is already delivered as drag events. Unpressed
+        // movement is only useful while the floating preview is visible.
+        guard isEnabled else { return }
+        if let movementTap {
+            CGEvent.tapEnable(tap: movementTap, enable: true)
+            return
+        }
+        let callback: CGEventTapCallBack = { _, type, event, context in
+            guard let context else { return Unmanaged.passUnretained(event) }
+            return MainActor.assumeIsolated {
+                let owner = Unmanaged<GestureController>.fromOpaque(context).takeUnretainedValue()
+                if type == .mouseMoved, owner.wheelIsOpen {
+                    owner.updateSelection(at: owner.appKitPoint(event.location))
+                } else if owner.wheelIsOpen,
+                          type == .tapDisabledByTimeout || type == .tapDisabledByUserInput,
+                          let tap = owner.movementTap {
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                }
+                return Unmanaged.passUnretained(event)
+            }
+        }
+        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
+                                         options: .listenOnly,
+                                         eventsOfInterest: CGEventMask(1) << CGEventType.mouseMoved.rawValue,
+                                         callback: callback, userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return }
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+            CFMachPortInvalidate(tap)
+            return
+        }
+        movementTap = tap
+        movementSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+    }
 }
 
 private struct HoldPreview: View {
@@ -511,7 +568,7 @@ private struct FloatingWheel: View {
     @ObservedObject var selection: WheelInteraction
 
     var body: some View {
-        WheelWithActions(model: model, interaction: selection)
+        WheelWithActions(model: model, interaction: selection, isActive: selection.isPresented)
             .preferredColorScheme(.dark)
             .scaleEffect(reduceMotion || selection.isPresented ? 1 : 0.90)
             .opacity(selection.isPresented ? 1 : 0)

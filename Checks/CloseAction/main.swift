@@ -1,7 +1,20 @@
 import AppKit
 import Foundation
+import Combine
 
 MainActor.assumeIsolated {
+    // A stationary preview must not invalidate SwiftUI at the mouse poll rate.
+    let steady = WheelInteraction()
+    var publications = 0
+    let observation = steady.objectWillChange.sink { publications += 1 }
+    let emptySlots = (0..<8).map { WheelSlot(id: $0, app: nil) }
+    for _ in 0..<1_000 {
+        steady.diameter = 280
+        steady.update(at: CGPoint(x: 100, y: 100), slots: emptySlots, allowsBeyondEdge: false)
+    }
+    precondition(publications == 1, "Unchanged preview state kept invalidating SwiftUI")
+    withExtendedLifetime(observation) {}
+
     let state = WheelInteraction(dwellDelay: 0.03)
     state.select("editor", canRevealClose: true)
     precondition(state.closeTargetID == nil)

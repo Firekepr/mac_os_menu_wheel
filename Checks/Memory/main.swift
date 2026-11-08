@@ -17,6 +17,10 @@ precondition(AppMemory.processIDs(root: 10, bundlePath: "/Apps/Music.app", proce
              == [10, 11, 12, 13, 14], "Helpers must be included once without matching neighboring bundles")
 precondition(AppMemory.processIDs(root: 10, bundlePath: nil, processes: processes) == [10, 12])
 precondition(AppMemory.processIDs(root: 99, bundlePath: nil, processes: []) == [99])
+let deepTree = (100..<2_100).reversed().map {
+    AppMemory.Process(id: pid_t($0), parentID: pid_t($0 - 1), executablePath: nil)
+}
+precondition(AppMemory.processIDs(root: 99, bundlePath: nil, processes: deepTree).count == 2_001)
 precondition(AppMemory.sample(root: -1, bundlePath: nil) == nil, "An unreadable process must not appear as zero RAM")
 
 // Allocate and touch memory to verify an actual footprint rather than a stub.

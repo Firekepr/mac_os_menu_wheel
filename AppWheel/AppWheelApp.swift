@@ -48,6 +48,6 @@ private struct AppSettingsView: View {
                 .tabItem { Label(L10n.text("Favoritos"), systemImage: "star") }
                 .tag(1)
         }
-        .frame(width: 600, height: selectedTab == 0 ? 510 : 620)
+        .frame(width: 600, height: selectedTab == 0 ? 640 : 620)
     }
 }

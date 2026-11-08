@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import ServiceManagement
 
 enum MouseTriggerButton: Int, CaseIterable, Identifiable {
     case left = 0, right = 1, middle = 2, side4 = 3, side5 = 4
@@ -80,13 +81,73 @@ final class WheelPreferences: ObservableObject {
     }
 }
 
+/// The system registration is the source of truth; never register on app launch
+/// or overwrite changes the user makes in System Settings.
+@MainActor
+final class LaunchAtLogin: ObservableObject {
+    @Published private(set) var status: SMAppService.Status
+    @Published private(set) var error: String?
+    private let readStatus: () -> SMAppService.Status
+    private let register: () throws -> Void
+    private let unregister: () throws -> Void
+
+    init(readStatus: @escaping () -> SMAppService.Status = { SMAppService.mainApp.status },
+         register: @escaping () throws -> Void = { try SMAppService.mainApp.register() },
+         unregister: @escaping () throws -> Void = { try SMAppService.mainApp.unregister() }) {
+        self.readStatus = readStatus
+        self.register = register
+        self.unregister = unregister
+        status = readStatus()
+    }
+
+    var isRequested: Bool { status == .enabled || status == .requiresApproval }
+
+    func refresh() { status = readStatus() }
+
+    func setEnabled(_ enabled: Bool) {
+        refresh()
+        error = nil
+        guard enabled != isRequested else { return }
+        do {
+            if enabled { try register() } else { try unregister() }
+        } catch {
+            self.error = L10n.text("Não foi possível alterar a inicialização automática: %@", error.localizedDescription)
+        }
+        refresh()
+    }
+}
+
 struct WheelPreferencesView: View {
     @ObservedObject var preferences: WheelPreferences
+    @StateObject private var launchAtLogin = LaunchAtLogin()
     @State private var showsRestartDialog = false
     @State private var isRestarting = false
     @State private var restartError: String?
     var body: some View {
         Form {
+            Section(L10n.text("Inicialização")) {
+                Toggle(L10n.text("Iniciar com o macOS"), isOn: Binding(
+                    get: { launchAtLogin.isRequested },
+                    set: { launchAtLogin.setEnabled($0) }
+                ))
+                Text(L10n.text("Abrir o AppWheel em segundo plano ao iniciar sessão no macOS."))
+                    .font(.caption).foregroundStyle(.secondary)
+                if launchAtLogin.status == .requiresApproval {
+                    Text(L10n.text("Aguardando sua autorização nos Itens de Início do macOS."))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button(L10n.text("Abrir Itens de Início")) {
+                        SMAppService.openSystemSettingsLoginItems()
+                    }
+                }
+                if launchAtLogin.status == .notFound {
+                    Text(L10n.text("O macOS não encontrou o app para configurar a inicialização automática."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let error = launchAtLogin.error {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                        .textSelection(.enabled)
+                }
+            }
             Section(L10n.text("Idioma")) {
                 Picker(L10n.text("Idioma"), selection: $preferences.language) {
                     ForEach(AppLanguage.allCases) { language in
@@ -129,6 +190,10 @@ struct WheelPreferencesView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { launchAtLogin.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            launchAtLogin.refresh()
+        }
         .disabled(isRestarting)
         .onChange(of: preferences.language) { _, _ in
             restartError = nil

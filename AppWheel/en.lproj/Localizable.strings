@@ -107,3 +107,10 @@
 "Este favorito aparece mesmo quando o aplicativo está fechado." = "This favorite appears even when the application is closed.";
 "Quando este favorito estiver fechado, outros apps poderão usar a posição." = "When this favorite is closed, other apps can use its position.";
 "Esta posição será preenchida por um app aberto." = "This position will be filled by a running app.";
+"Inicialização" = "Startup";
+"Iniciar com o macOS" = "Launch at login";
+"Abrir o AppWheel em segundo plano ao iniciar sessão no macOS." = "Open AppWheel in the background when you log in to macOS.";
+"Aguardando sua autorização nos Itens de Início do macOS." = "Waiting for your approval in macOS Login Items.";
+"Abrir Itens de Início" = "Open Login Items";
+"O macOS não encontrou o app para configurar a inicialização automática." = "macOS could not find the app to configure launch at login.";
+"Não foi possível alterar a inicialização automática: %@" = "Could not change launch at login: %@";

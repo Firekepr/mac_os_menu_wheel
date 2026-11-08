@@ -1,7 +1,56 @@
 import AppKit
 import Foundation
+import ServiceManagement
 
 MainActor.assumeIsolated {
+    // Exercise login-item transitions without registering this test executable
+    // or changing the user's actual Login Items.
+    var loginStatus = SMAppService.Status.notRegistered
+    var registrations = 0
+    var removals = 0
+    var registrationFails = false
+    var removalFails = false
+    struct LoginFailure: Error {}
+    let login = LaunchAtLogin(readStatus: { loginStatus }, register: {
+        registrations += 1
+        if registrationFails { throw LoginFailure() }
+        loginStatus = .enabled
+    }, unregister: {
+        removals += 1
+        if removalFails { throw LoginFailure() }
+        loginStatus = .notRegistered
+    })
+    precondition(!login.isRequested && registrations == 0 && removals == 0)
+    login.setEnabled(true)
+    precondition(login.isRequested && registrations == 1 && login.error == nil)
+    login.setEnabled(true)
+    precondition(registrations == 1)
+    // External changes must be reflected without registering again.
+    loginStatus = .requiresApproval
+    login.refresh()
+    precondition(login.isRequested && login.status == .requiresApproval)
+    login.setEnabled(true)
+    precondition(registrations == 1)
+    removalFails = true
+    login.setEnabled(false)
+    precondition(login.isRequested && login.error != nil)
+    removalFails = false
+    login.setEnabled(false)
+    precondition(!login.isRequested && login.error == nil && removals == 2)
+    registrationFails = true
+    login.setEnabled(true)
+    precondition(!login.isRequested && login.error != nil)
+    registrationFails = false
+    login.setEnabled(true)
+    precondition(login.isRequested && login.error == nil)
+    loginStatus = .notRegistered
+    login.refresh()
+    precondition(!login.isRequested && registrations == 3)
+    loginStatus = .notFound
+    login.refresh()
+    precondition(!login.isRequested)
+    print("Login-item checks passed: no automatic registration, enable, disable, approval, external changes, failure recovery.")
+
     let suite = "AppWheel.PreferenceChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }

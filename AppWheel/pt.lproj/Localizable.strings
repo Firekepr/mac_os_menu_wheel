@@ -114,3 +114,5 @@
 "Abrir Itens de Início" = "Abrir Itens de Início";
 "O macOS não encontrou o app para configurar a inicialização automática." = "O macOS não encontrou o app para configurar a inicialização automática.";
 "Não foi possível alterar a inicialização automática: %@" = "Não foi possível alterar a inicialização automática: %@";
+"Mostrar contagem ao segurar" = "Mostrar contagem ao segurar";
+"Exibe um arco ao redor do ponteiro enquanto aguarda a abertura da roda." = "Exibe um arco ao redor do ponteiro enquanto aguarda a abertura da roda.";

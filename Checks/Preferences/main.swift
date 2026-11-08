@@ -55,6 +55,9 @@ MainActor.assumeIsolated {
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let preferences = WheelPreferences(defaults: defaults)
+    precondition(!preferences.showsHoldPreview)
+    preferences.showsHoldPreview = true
+    precondition(WheelPreferences(defaults: defaults).showsHoldPreview)
     precondition(preferences.language == .system)
     precondition(defaults.persistentDomain(forName: suite)?["AppleLanguages"] == nil)
     preferences.language = .english
@@ -80,7 +83,15 @@ MainActor.assumeIsolated {
     defaults.set(999, forKey: "wheelTriggerButton")
     precondition(WheelPreferences(defaults: defaults).triggerButton == .right)
     preferences.reset()
+    precondition(!WheelPreferences(defaults: defaults).showsHoldPreview)
     precondition(WheelPreferences(defaults: defaults).triggerButton == .right)
+
+    for duration in [0.15, 0.3, 1.0] {
+        let timing = HoldPreviewTiming(startedAt: 100, duration: duration)
+        precondition(timing.progress(at: 99) == 0)
+        precondition(abs(timing.progress(at: 100 + duration / 2) - 0.5) < 0.00001)
+        precondition(timing.progress(at: 102) == 1)
+    }
 
     var posted: [CGEvent] = []
     var frontmost = "test.editor"
@@ -91,6 +102,13 @@ MainActor.assumeIsolated {
         CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: CGPoint(x: x, y: 300),
                 mouseButton: CGMouseButton(rawValue: UInt32(button.rawValue))!)!
     }
+    // The default keeps the countdown entirely inactive, while short clicks
+    // still replay normally. Enabling it only affects subsequent gestures.
+    _ = controller.handle(.rightMouseDown, event: event(.right, .rightMouseDown))
+    precondition(controller.holdPreviewTiming == nil)
+    _ = controller.handle(.rightMouseUp, event: event(.right, .rightMouseUp))
+    precondition(posted.map(\.type) == [.rightMouseDown, .rightMouseUp])
+    controller.preferences.showsHoldPreview = true
     for button in MouseTriggerButton.allCases {
         controller.preferences.triggerButton = button
         // Unselected buttons must retain their original events.
@@ -102,7 +120,13 @@ MainActor.assumeIsolated {
         // A short press replays exactly the selected button's down/up pair.
         posted.removeAll()
         precondition(controller.handle(button.down, event: event(button, button.down)) == nil)
+        let deadline = controller.holdPreviewTiming!
+        let savedDelay = controller.preferences.holdDelay
+        controller.preferences.holdDelay = 0.95
+        precondition(controller.holdPreviewTiming == deadline, "An in-flight countdown changed with preferences")
+        controller.preferences.holdDelay = savedDelay
         precondition(controller.handle(button.up, event: event(button, button.up)) == nil)
+        precondition(controller.holdPreviewTiming == nil)
         precondition(posted.map(\.type) == [button.down, button.up])
         precondition(posted.allSatisfy { $0.getIntegerValueField(.mouseEventButtonNumber) == Int64(button.rawValue) })
 
@@ -111,6 +135,7 @@ MainActor.assumeIsolated {
         _ = controller.handle(button.down, event: event(button, button.down))
         _ = controller.handle(button.drag, event: event(button, button.drag, x: 320))
         precondition(posted.map(\.type) == [button.down, button.drag])
+        precondition(controller.holdPreviewTiming == nil, "A drag kept its countdown")
         let up = event(button, button.up)
         precondition(controller.handle(button.up, event: up)?.takeUnretainedValue() === up)
 
@@ -118,6 +143,7 @@ MainActor.assumeIsolated {
         frontmost = "test.game"
         let down = event(button, button.down)
         precondition(controller.handle(button.down, event: down)?.takeUnretainedValue() === down)
+        precondition(controller.holdPreviewTiming == nil, "Excluded app started a countdown")
         controller.preferences.triggerButton = other
         for phase in [button.drag, button.up] {
             let e = event(button, phase)
@@ -132,6 +158,7 @@ MainActor.assumeIsolated {
         controller.preferences.triggerButton = other
         let escape = CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: true)!
         precondition(controller.handle(.keyDown, event: escape) == nil)
+        precondition(controller.holdPreviewTiming == nil, "Esc kept its countdown")
         precondition(controller.handle(button.up, event: event(button, button.up)) == nil)
         precondition(posted.isEmpty)
     }

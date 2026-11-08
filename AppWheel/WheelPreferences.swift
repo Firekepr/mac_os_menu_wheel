@@ -44,6 +44,9 @@ final class WheelPreferences: ObservableObject {
     @Published var triggerButton: MouseTriggerButton {
         didSet { defaults.set(triggerButton.rawValue, forKey: "wheelTriggerButton") }
     }
+    @Published var showsHoldPreview: Bool {
+        didSet { defaults.set(showsHoldPreview, forKey: "wheelShowsHoldPreview") }
+    }
 
     @Published var language: AppLanguage {
         didSet {
@@ -58,6 +61,7 @@ final class WheelPreferences: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        showsHoldPreview = defaults.bool(forKey: "wheelShowsHoldPreview")
         language = defaults.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .system
         wheelDiameter = Self.validDiameter((defaults.object(forKey: "wheelDiameter") as? Double) ?? Self.defaultDiameter)
         holdDelay = Self.validDelay((defaults.object(forKey: "wheelHoldDelay") as? Double) ?? Self.defaultDelay)
@@ -71,6 +75,7 @@ final class WheelPreferences: ObservableObject {
         wheelDiameter = Self.defaultDiameter
         holdDelay = Self.defaultDelay
         triggerButton = .right
+        showsHoldPreview = false
         language = .system
     }
     private static func validDiameter(_ value: Double) -> Double {
@@ -179,6 +184,9 @@ struct WheelPreferencesView: View {
                         Text(button.title).tag(button)
                     }
                 }
+                Toggle(L10n.text("Mostrar contagem ao segurar"), isOn: $preferences.showsHoldPreview)
+                Text(L10n.text("Exibe um arco ao redor do ponteiro enquanto aguarda a abertura da roda."))
+                    .font(.caption).foregroundStyle(.secondary)
                 Text(L10n.text("Cliques rápidos e arrastos continuam sendo encaminhados ao aplicativo. As alterações valem para o próximo gesto."))
                     .font(.caption).foregroundStyle(.secondary)
             }

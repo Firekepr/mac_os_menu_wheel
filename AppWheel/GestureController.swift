@@ -11,6 +11,15 @@ private final class WheelPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+struct HoldPreviewTiming: Equatable {
+    let startedAt: TimeInterval
+    let duration: TimeInterval
+
+    func progress(at uptime: TimeInterval) -> Double {
+        min(1, max(0, (uptime - startedAt) / duration))
+    }
+}
+
 @MainActor
 final class GestureController: ObservableObject {
     @Published private(set) var isEnabled = false
@@ -27,6 +36,9 @@ final class GestureController: ObservableObject {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var holdTimer: Timer?
+    private var holdPreviewPanel: WheelPanel?
+    private var holdPreviewGeneration = 0
+    private(set) var holdPreviewTiming: HoldPreviewTiming?
     private var previewTimer: Timer?
     private var pendingDown: CGEvent?
     private var wheelIsOpen = false
@@ -216,9 +228,15 @@ final class GestureController: ObservableObject {
             if bypassTriggerButton { return unchanged }
             guard let copy = event.copy() else { return unchanged }
             pendingDown = copy
-            holdTimer = Timer.scheduledTimer(withTimeInterval: preferences.holdDelay, repeats: false) { [weak self] _ in
+            // Freeze the deadline for both the timer and its visual feedback.
+            let delay = preferences.holdDelay
+            if preferences.showsHoldPreview {
+                beginHoldPreview(at: appKitPoint(copy.location), duration: delay)
+            }
+            holdTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self, let down = self.pendingDown else { return }
+                    self.cancelHold()
                     self.pendingDown = nil
                     self.consumeUntilUp = true
                     guard !self.exceptions.contains(bundleIdentifier: self.frontmostBundleIdentifier()) else { return }
@@ -417,6 +435,42 @@ final class GestureController: ObservableObject {
     private func cancelHold() {
         holdTimer?.invalidate()
         holdTimer = nil
+        holdPreviewGeneration += 1
+        holdPreviewTiming = nil
+        holdPreviewPanel?.orderOut(nil)
+        // Release the TimelineView as well, so no animation runs while hidden.
+        holdPreviewPanel?.contentView = nil
+    }
+
+    private func beginHoldPreview(at point: CGPoint, duration: TimeInterval) {
+        let timing = HoldPreviewTiming(startedAt: ProcessInfo.processInfo.systemUptime, duration: duration)
+        holdPreviewTiming = timing
+        let generation = holdPreviewGeneration
+        // Quick clicks should not flash an overlay. Defer window work outside
+        // the mouse callback; the arc still measures from the original press.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+            guard let self, self.pendingDown != nil,
+                  self.holdPreviewGeneration == generation,
+                  self.holdPreviewTiming == timing,
+                  timing.progress(at: ProcessInfo.processInfo.systemUptime) < 1 else { return }
+            guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main else { return }
+            let frame = WheelGeometry.panelFrame(around: point, visibleFrame: screen.visibleFrame, diameter: 64)
+            if self.holdPreviewPanel == nil {
+                let panel = WheelPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
+                                       backing: .buffered, defer: false)
+                panel.isOpaque = false
+                panel.backgroundColor = .clear
+                panel.hasShadow = false
+                panel.level = .popUpMenu
+                panel.hidesOnDeactivate = false
+                panel.ignoresMouseEvents = true
+                panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+                self.holdPreviewPanel = panel
+            }
+            self.holdPreviewPanel?.contentView = NSHostingView(rootView: HoldPreview(timing: timing))
+            self.holdPreviewPanel?.setFrame(frame, display: true)
+            self.holdPreviewPanel?.orderFrontRegardless()
+        }
     }
 
     @objc private func cancelForEnvironmentChange() {
@@ -427,6 +481,28 @@ final class GestureController: ObservableObject {
     }
 
     @objc private func willTerminate() { shutDown() }
+}
+
+private struct HoldPreview: View {
+    let timing: HoldPreviewTiming
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60)) { _ in
+            let progress = timing.progress(at: ProcessInfo.processInfo.systemUptime)
+            ZStack {
+                Circle().stroke(.black.opacity(0.22), lineWidth: 5)
+                Circle().stroke(.white.opacity(0.30), lineWidth: 2.5)
+                Circle().trim(from: 0, to: progress)
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: .accentColor.opacity(0.35), radius: 3)
+            }
+            .frame(width: 42, height: 42)
+            .frame(width: 64, height: 64)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
 }
 
 private struct FloatingWheel: View {

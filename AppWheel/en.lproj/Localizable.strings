@@ -114,3 +114,5 @@
 "Abrir Itens de Início" = "Open Login Items";
 "O macOS não encontrou o app para configurar a inicialização automática." = "macOS could not find the app to configure launch at login.";
 "Não foi possível alterar a inicialização automática: %@" = "Could not change launch at login: %@";
+"Mostrar contagem ao segurar" = "Show hold countdown";
+"Exibe um arco ao redor do ponteiro enquanto aguarda a abertura da roda." = "Show an arc around the pointer while waiting for the wheel to open.";

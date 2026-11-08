@@ -2,6 +2,10 @@ import AppKit
 import ApplicationServices
 import SwiftUI
 
+extension Notification.Name {
+    static let appWheelOpenMainWindow = Notification.Name("AppWheel.openMainWindow")
+}
+
 private final class WheelPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
@@ -19,6 +23,7 @@ final class GestureController: ObservableObject {
     private let model: RunningApps
     private let selection = WheelInteraction()
     private var panel: WheelPanel?
+    private var mainWindow: NSWindow?
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var holdTimer: Timer?
@@ -54,6 +59,8 @@ final class GestureController: ObservableObject {
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
                                                name: NSApplication.willTerminateNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(openMainWindow),
+                                               name: .appWheelOpenMainWindow, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(restoreGestureIfNeeded),
                                                name: NSApplication.didBecomeActiveNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
@@ -149,6 +156,34 @@ final class GestureController: ObservableObject {
         }
     }
 
+    @objc func openMainWindow() {
+        cancelForEnvironmentChange()
+        if mainWindow == nil {
+            let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 640, height: 800),
+                                  styleMask: [.titled, .closable, .miniaturizable],
+                                  backing: .buffered, defer: false)
+            window.title = "AppWheel"
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView:
+                ContentView(preferences: preferences, favorites: favorites).environmentObject(self))
+            window.center()
+            mainWindow = window
+        }
+        NSApplication.shared.activate()
+        mainWindow?.makeKeyAndOrderFront(nil)
+        // Explicit user requests must also bring an accessory app forward when
+        // the gesture started in another application.
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.createsNewApplicationInstance = false
+        configuration.addsToRecentItems = false
+        configuration.promptsUserIfNeeded = false
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
+            guard let error else { return }
+            Task { @MainActor in self?.status = "Não foi possível trazer o AppWheel à frente: \(error.localizedDescription)" }
+        }
+    }
+
     func preview() {
         guard pendingDown == nil, !consumeUntilUp else { return }
         show(at: NSEvent.mouseLocation)
@@ -225,12 +260,15 @@ final class GestureController: ObservableObject {
             }
             if consumeUntilUp {
                 if wheelIsOpen { updateSelection(at: appKitPoint(event.location)) }
+                let shouldOpenMainWindow = wheelIsOpen && selection.isOpenMainWindowHovered
                 let closeTarget = wheelIsOpen && selection.isCloseHovered
                     ? model.apps.first { $0.id == selection.closeTargetID } : nil
                 let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
                 dismiss()
                 consumeUntilUp = false
-                if let closeTarget {
+                if shouldOpenMainWindow {
+                    DispatchQueue.main.async { [weak self] in self?.openMainWindow() }
+                } else if let closeTarget {
                     DispatchQueue.main.async { [weak self] in
                         guard let self else { return }
                         let error = self.model.requestQuit(closeTarget)
@@ -291,7 +329,6 @@ final class GestureController: ObservableObject {
     private func show(at point: CGPoint) {
         dismiss(animated: false)
         model.refresh()
-        guard !model.apps.isEmpty else { return }
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let screen else { return }
         presentedDiameter = WheelActionGeometry.fittingDiameter(CGFloat(preferences.wheelDiameter), available: screen.visibleFrame.size)

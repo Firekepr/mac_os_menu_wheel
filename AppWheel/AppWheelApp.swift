@@ -5,16 +5,20 @@ struct AppWheelApp: App {
     @StateObject private var gesture = GestureController()
 
     var body: some Scene {
-        WindowGroup {
-            ContentView(preferences: gesture.preferences, favorites: gesture.favorites).environmentObject(gesture)
-        }
-        .defaultSize(width: 640, height: 800)
-        .windowResizability(.contentSize)
         Settings {
             AppSettingsView(preferences: gesture.preferences, favorites: gesture.favorites)
         }
         .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Abrir AppWheel") { gesture.openMainWindow() }
+            }
+        }
         MenuBarExtra("AppWheel", systemImage: "circle.hexagongrid.fill") {
+            Button("Abrir AppWheel") { gesture.openMainWindow() }
+            Divider()
             Button(gesture.isEnabled ? "Desativar gesto" : "Ativar gesto global") {
                 if gesture.isEnabled { gesture.stop() } else { gesture.start() }
             }

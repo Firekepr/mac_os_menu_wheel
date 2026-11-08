@@ -36,7 +36,9 @@ struct ContentView: View {
                 }
                 .onTapGesture { location in
                     select(at: location)
-                    if interaction.isCloseHovered,
+                    if interaction.isOpenMainWindowHovered {
+                        gesture.openMainWindow()
+                    } else if interaction.isCloseHovered,
                        let target = model.apps.first(where: { $0.id == interaction.closeTargetID }) {
                         model.requestQuit(target)
                     } else if let selected { model.activate(selected) }
@@ -47,7 +49,7 @@ struct ContentView: View {
                 Text("Prévia interativa")
                     .font(.headline)
                 Text("Clique para trocar de app. Pause sobre um app para revelar a ação de fechar.")
-                Text(preferences.gestureHint + " Centro ou Esc para cancelar.")
+                Text(preferences.gestureHint + " Centro superior ou Esc para cancelar.")
                     .font(.caption)
             }
             .foregroundStyle(.secondary)

@@ -4,6 +4,7 @@ struct WheelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
     let selectedID: String?
+    var isOpenMainWindowHovered = false
     @State private var memory: AppMemoryUsage?
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
@@ -115,9 +116,28 @@ struct WheelView: View {
                         .help(memory?.help ?? "Consumo de memória do aplicativo selecionado.")
                 }
             }
+            .offset(y: selected == nil ? -16 : 0)
             .padding(8)
-            .frame(width: 126, height: 126)
+            .frame(width: WheelGeometry.centerDiameter, height: WheelGeometry.centerDiameter)
             .background(.background.opacity(0.45), in: Circle())
+            .overlay {
+                if selected == nil {
+                    CenterOpenArea()
+                        .fill(Color.accentColor.opacity(isOpenMainWindowHovered ? 0.45 : 0.12))
+                        .overlay(alignment: .bottom) {
+                            Label("Abrir", systemImage: "macwindow")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(isOpenMainWindowHovered ? Color.white : Color.primary)
+                                .padding(.top, 6)
+                                .frame(width: WheelGeometry.centerDiameter,
+                                       height: WheelGeometry.centerDiameter * WheelGeometry.centerOpenFraction,
+                                       alignment: .top)
+                        }
+                        .clipShape(CenterOpenArea())
+                        .overlay { CenterOpenArea().stroke(.primary.opacity(0.12), lineWidth: 1) }
+                        .help("Abrir AppWheel")
+                }
+            }
             .overlay {
                 Circle()
                     .stroke(Color.accentColor.opacity(selected == nil ? 0 : 0.30), lineWidth: 1)
@@ -126,6 +146,7 @@ struct WheelView: View {
         .frame(width: 380, height: 380)
         .contentShape(Circle())
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.24, bounce: 0.15), value: selectedID)
+        .animation(.easeOut(duration: 0.12), value: isOpenMainWindowHovered)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Roda de aplicativos")
         .accessibilityValue([selected?.name ?? "Nenhum aplicativo selecionado", memoryLabel].compactMap { $0 }.joined(separator: ", "))
@@ -158,9 +179,24 @@ struct WheelView: View {
                     Button("Fechar \(app.name)") { model.requestQuit(app) }
                 }
             }
+            Button("Abrir AppWheel") {
+                NotificationCenter.default.post(name: .appWheelOpenMainWindow, object: nil)
+            }
         }
     }
 
+}
+
+private struct CenterOpenArea: Shape {
+    func path(in rect: CGRect) -> Path {
+        let radius = rect.width / 2
+        let angle = asin(1 - 2 * WheelGeometry.centerOpenFraction)
+        var path = Path()
+        path.addArc(center: CGPoint(x: rect.midX, y: rect.midY), radius: radius,
+                    startAngle: .radians(angle), endAngle: .radians(.pi - angle), clockwise: false)
+        path.closeSubpath()
+        return path
+    }
 }
 
 private struct SelectedIconFloat: ViewModifier {

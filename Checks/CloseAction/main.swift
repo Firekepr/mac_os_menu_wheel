@@ -74,6 +74,27 @@ MainActor.assumeIsolated {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
         precondition(state.closeTargetID == nil, "An empty sector left the dwell timer alive")
     }
+    for diameter in [260.0, 380.0, 520.0] {
+        state.diameter = diameter
+        let center = WheelActionGeometry.outerSize(diameter: diameter) / 2
+        let radius = WheelGeometry.centerDiameter / 2 * diameter / WheelGeometry.size
+        let openPoint = CGPoint(x: center, y: center + radius * 0.6)
+        let local = CGPoint(x: diameter / 2, y: diameter / 2 + radius * 0.6)
+        precondition(WheelGeometry.isOpenMainWindowArea(at: local, diameter: diameter))
+        precondition(!WheelGeometry.isOpenMainWindowArea(at: CGPoint(x: diameter / 2, y: diameter / 2), diameter: diameter))
+        precondition(!WheelGeometry.isOpenMainWindowArea(at: CGPoint(x: diameter / 2 + radius, y: local.y), diameter: diameter))
+        state.select("editor", canRevealClose: true)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+        state.update(at: openPoint, slots: [], allowsBeyondEdge: true)
+        precondition(state.isOpenMainWindowHovered && state.id == nil && state.closeTargetID == nil && !state.isCloseHovered)
+        state.update(at: CGPoint(x: center, y: center), slots: [], allowsBeyondEdge: true)
+        precondition(!state.isOpenMainWindowHovered && state.id == nil)
+        state.update(at: openPoint, slots: [], allowsBeyondEdge: false)
+        precondition(state.isOpenMainWindowHovered)
+        state.select("editor", canRevealClose: false)
+        precondition(!state.isOpenMainWindowHovered)
+        state.reset()
+    }
     let app = WheelApp(application: NSRunningApplication.current)
     var requests = 0
     precondition(model.requestQuit(app, isRunning: { _ in true }, terminate: { _ in requests += 1; return true }) == nil)

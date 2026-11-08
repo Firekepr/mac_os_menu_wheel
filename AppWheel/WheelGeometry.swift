@@ -4,6 +4,17 @@ import CoreGraphics
 enum WheelGeometry {
     static let size: CGFloat = 380
     static let deadZone: CGFloat = 76
+    static let centerDiameter: CGFloat = 126
+    static let centerOpenFraction: CGFloat = 0.30
+
+    /// Bottom 30% of the visible center disk, in wheel-local coordinates.
+    static func isOpenMainWindowArea(at point: CGPoint, diameter: CGFloat = size) -> Bool {
+        guard diameter.isFinite, diameter > 0 else { return false }
+        let dx = (point.x - diameter / 2) * size / diameter
+        let dy = (point.y - diameter / 2) * size / diameter
+        let radius = centerDiameter / 2
+        return dy >= radius * (1 - 2 * centerOpenFraction) && hypot(dx, dy) <= radius
+    }
 
     /// Coordinates are local to the wheel, with y pointing down as in SwiftUI.
     static func index(at point: CGPoint, count: Int, allowsBeyondEdge: Bool, diameter: CGFloat = size) -> Int? {

@@ -10,6 +10,7 @@ final class WheelInteraction: ObservableObject {
     @Published var id: String?
     @Published private(set) var closeTargetID: String?
     @Published private(set) var isCloseHovered = false
+    @Published private(set) var isOpenMainWindowHovered = false
     @Published var isPresented = false
     @Published var diameter: CGFloat = WheelGeometry.size
     private var dwellTimer: Timer?
@@ -18,6 +19,7 @@ final class WheelInteraction: ObservableObject {
     init(dwellDelay: TimeInterval = 0.65) { self.dwellDelay = dwellDelay }
 
     func select(_ id: String?, canRevealClose: Bool) {
+        if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
         if isCloseHovered { isCloseHovered = false }
         if self.id != id {
             cancelDwell()
@@ -39,6 +41,7 @@ final class WheelInteraction: ObservableObject {
 
     func hoverClose() {
         cancelDwell()
+        if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
         if id != closeTargetID { id = closeTargetID }
         let hovered = closeTargetID != nil
         if isCloseHovered != hovered { isCloseHovered = hovered }
@@ -49,6 +52,7 @@ final class WheelInteraction: ObservableObject {
         if id != nil { id = nil }
         if closeTargetID != nil { closeTargetID = nil }
         if isCloseHovered { isCloseHovered = false }
+        if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
     }
 
     private func cancelDwell() {
@@ -57,6 +61,15 @@ final class WheelInteraction: ObservableObject {
     }
 
     func update(at point: CGPoint, slots: [WheelSlot], allowsBeyondEdge: Bool) {
+        let inset = WheelActionGeometry.inset(diameter: diameter)
+        let local = CGPoint(x: point.x - inset, y: point.y - inset)
+        if WheelGeometry.isOpenMainWindowArea(at: local, diameter: diameter) {
+            if !isOpenMainWindowHovered {
+                reset()
+                isOpenMainWindowHovered = true
+            }
+            return
+        }
         let center = WheelActionGeometry.outerSize(diameter: diameter) / 2
         let deadZone = WheelGeometry.deadZone * diameter / WheelGeometry.size
         if hypot(point.x - center, point.y - center) <= deadZone {
@@ -71,8 +84,6 @@ final class WheelInteraction: ObservableObject {
             hoverClose()
             return
         }
-        let inset = WheelActionGeometry.inset(diameter: diameter)
-        let local = CGPoint(x: point.x - inset, y: point.y - inset)
         let index = WheelGeometry.index(at: local, count: slots.count,
                                         allowsBeyondEdge: allowsBeyondEdge, diameter: diameter)
         let app = index.flatMap { slots[$0].app }
@@ -139,7 +150,7 @@ struct WheelWithActions: View {
         let diameter = interaction.diameter
         let side = WheelActionGeometry.outerSize(diameter: diameter)
         ZStack {
-            WheelView(model: model, selectedID: interaction.id)
+            WheelView(model: model, selectedID: interaction.id, isOpenMainWindowHovered: interaction.isOpenMainWindowHovered)
                 .scaleEffect(diameter / WheelGeometry.size)
                 .frame(width: diameter, height: diameter)
 

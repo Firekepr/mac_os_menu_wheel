@@ -100,3 +100,10 @@
 "OK" = "OK";
 "O AppWheel precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas." = "O AppWheel precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas.";
 "O macOS não conseguiu abrir uma nova instância do AppWheel." = "O macOS não conseguiu abrir uma nova instância do AppWheel.";
+"Clique em uma posição da roda para configurar seu favorito." = "Clique em uma posição da roda para configurar seu favorito.";
+"Editar posição" = "Editar posição";
+"Trocar aplicativo…" = "Trocar aplicativo…";
+"Remover favorito" = "Remover favorito";
+"Este favorito aparece mesmo quando o aplicativo está fechado." = "Este favorito aparece mesmo quando o aplicativo está fechado.";
+"Quando este favorito estiver fechado, outros apps poderão usar a posição." = "Quando este favorito estiver fechado, outros apps poderão usar a posição.";
+"Esta posição será preenchida por um app aberto." = "Esta posição será preenchida por um app aberto.";

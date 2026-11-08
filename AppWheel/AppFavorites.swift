@@ -135,70 +135,193 @@ final class AppFavorites: ObservableObject {
 
 struct AppFavoritesView: View {
     @ObservedObject var favorites: AppFavorites
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var runningApps: [NSRunningApplication] = []
+    @State private var selectedPosition = 0
+    @State private var hoveredPosition: Int?
+
+    private var selectedApp: FavoriteApp? { favorites.app(at: selectedPosition) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(L10n.text("Apps favoritos em posições fixas")).font(.title2.bold())
-            Text(L10n.text("Escolha o app de cada direção e quando ele aparece. Em “Só quando aberto”, o espaço fica livre para outros apps enquanto o favorito estiver fechado."))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            List(0..<8, id: \.self) { position in
-                HStack(spacing: 12) {
-                    Image(systemName: ["arrow.up", "arrow.up.right", "arrow.right", "arrow.down.right",
-                                       "arrow.down", "arrow.down.left", "arrow.left", "arrow.up.left"][position])
-                        .frame(width: 22).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(AppFavorites.directions[position]).font(.caption).foregroundStyle(.secondary)
-                        Text(favorites.app(at: position)?.name ?? L10n.text("Automático"))
-                            .fontWeight(.medium)
-                        if let app = favorites.app(at: position) {
-                            Picker(L10n.text("Disponibilidade"), selection: Binding(
-                                get: { favorites.app(at: position)?.visibility ?? app.visibility },
-                                set: { favorites.setVisibility($0, at: position) }
-                            )) {
-                                ForEach(FavoriteVisibility.allCases) { mode in
-                                    Text(mode.title).tag(mode)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .fixedSize()
-                            .accessibilityLabel(L10n.text("Quando mostrar %@: %@", app.name, AppFavorites.directions[position]))
-                        }
-                    }
-                    Spacer()
-                    Menu {
-                        ForEach(runningApps, id: \.processIdentifier) { app in
-                            if let id = app.bundleIdentifier, let url = app.bundleURL {
-                                Button(app.localizedName ?? L10n.text("Aplicativo")) {
-                                    favorites.set(position: position, bundleIdentifier: id,
-                                                  name: app.localizedName ?? L10n.text("Aplicativo"), path: url.path)
-                                }
-                            }
-                        }
-                        Divider()
-                        Button(L10n.text("Escolher aplicativo…")) { favorites.chooseApplication(at: position) }
-                    } label: { Text(L10n.text("Escolher…")) }
-                    .fixedSize()
-                    .accessibilityLabel(L10n.text("Escolher favorito: %@", AppFavorites.directions[position]))
-                    Button { favorites.remove(at: position) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless)
-                        .disabled(favorites.app(at: position) == nil)
-                        .accessibilityLabel(L10n.text("Remover favorito: %@", AppFavorites.directions[position]))
-                }
-                .padding(.vertical, 4)
+        VStack(spacing: 12) {
+            VStack(spacing: 5) {
+                Text(L10n.text("Apps favoritos em posições fixas")).font(.title2.bold())
+                Text(L10n.text("Clique em uma posição da roda para configurar seu favorito."))
+                    .font(.callout).foregroundStyle(.secondary)
             }
-            .listStyle(.inset)
+
+            ZStack {
+                Circle()
+                    .fill(.clear)
+                    .glassEffect(.regular, in: Circle())
+                ForEach(0..<8, id: \.self) { position in
+                    positionButton(position)
+                }
+                VStack(spacing: 5) {
+                    Image(systemName: "pencil.tip.crop.circle")
+                        .font(.title2).foregroundStyle(Color.accentColor)
+                    Text(AppFavorites.directions[selectedPosition])
+                        .font(.system(size: 12, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                    Text(L10n.text("Editar posição"))
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .frame(width: 106, height: 106)
+                .background(.quaternary.opacity(0.4), in: Circle())
+                .allowsHitTesting(false)
+            }
+            .frame(width: 320, height: 320)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selectedPosition)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hoveredPosition)
+
+            positionEditor
+
             Text(L10n.text("Posições salvas automaticamente. Escolher um app já fixado move-o para a nova posição. As alterações valem na próxima abertura da roda."))
                 .font(.caption).foregroundStyle(.secondary)
-            if let error = favorites.error { Text(error).font(.caption).foregroundStyle(.red) }
+                .fixedSize(horizontal: false, vertical: true)
+            if let error = favorites.error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
         }
         .padding(20)
-        .onAppear {
-            runningApps = NSWorkspace.shared.runningApplications
-                .filter { $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
-                .sorted { ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending }
+        .onAppear { refreshRunningApps() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in
+            refreshRunningApps()
         }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)) { _ in
+            refreshRunningApps()
+        }
+    }
+
+    private func positionButton(_ position: Int) -> some View {
+        let app = favorites.app(at: position)
+        let selected = selectedPosition == position
+        let hovered = hoveredPosition == position
+        let sector = FavoriteEditorSector(position: position)
+        let angle = Double(position) * .pi / 4 - .pi / 2
+        return Button {
+            selectedPosition = position
+        } label: {
+            ZStack {
+                sector.fill(Color.accentColor.opacity(selected ? 0.23 : hovered ? 0.10 : 0.015))
+                sector.stroke(selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.08), lineWidth: selected ? 1.5 : 1)
+                VStack(spacing: 3) {
+                    if let app {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
+                            .resizable().interpolation(.high)
+                            .frame(width: 36, height: 36)
+                            .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
+                    } else {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(selected ? Color.accentColor : .secondary)
+                            .frame(width: 36, height: 36)
+                            .background(.primary.opacity(0.045), in: Circle())
+                    }
+                    Text(app?.name ?? L10n.text("Automático"))
+                        .font(.system(size: 10, weight: selected ? .semibold : .regular))
+                        .lineLimit(1).truncationMode(.tail)
+                        .frame(width: 80)
+                }
+                .offset(x: cos(angle) * 115, y: sin(angle) * 115)
+                .allowsHitTesting(false)
+            }
+            .contentShape(sector)
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            if inside { hoveredPosition = position }
+            else if hoveredPosition == position { hoveredPosition = nil }
+        }
+        .help(L10n.text("Favorito — %@", AppFavorites.directions[position]) + ": " + (app?.name ?? L10n.text("Automático")))
+        .accessibilityLabel(L10n.text("Escolher favorito: %@", AppFavorites.directions[position]))
+        .accessibilityValue(app?.name ?? L10n.text("Automático"))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private var positionEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(AppFavorites.directions[selectedPosition])
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text(selectedApp?.name ?? L10n.text("Automático"))
+                        .font(.headline).lineLimit(1).help(selectedApp?.name ?? L10n.text("Automático"))
+                }
+                Spacer(minLength: 8)
+                Menu {
+                    ForEach(runningApps, id: \.processIdentifier) { app in
+                        if let id = app.bundleIdentifier, let url = app.bundleURL {
+                            Button(app.localizedName ?? L10n.text("Aplicativo")) {
+                                favorites.set(position: selectedPosition, bundleIdentifier: id,
+                                              name: app.localizedName ?? L10n.text("Aplicativo"), path: url.path)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button(L10n.text("Escolher aplicativo…")) {
+                        favorites.chooseApplication(at: selectedPosition)
+                    }
+                } label: {
+                    Text(L10n.text(selectedApp == nil ? "Escolher aplicativo…" : "Trocar aplicativo…"))
+                }
+                .fixedSize()
+                .accessibilityLabel(L10n.text("Escolher favorito: %@", AppFavorites.directions[selectedPosition]))
+            }
+            if let app = selectedApp {
+                HStack {
+                    Picker(L10n.text("Disponibilidade"), selection: Binding(
+                        get: { favorites.app(at: selectedPosition)?.visibility ?? app.visibility },
+                        set: { favorites.setVisibility($0, at: selectedPosition) }
+                    )) {
+                        ForEach(FavoriteVisibility.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityLabel(L10n.text("Quando mostrar %@: %@", app.name, AppFavorites.directions[selectedPosition]))
+                    Spacer(minLength: 12)
+                    Button(L10n.text("Remover favorito"), systemImage: "minus.circle") {
+                        favorites.remove(at: selectedPosition)
+                    }
+                    .accessibilityLabel(L10n.text("Remover favorito: %@", AppFavorites.directions[selectedPosition]))
+                }
+                Text(app.visibility == .always
+                     ? L10n.text("Este favorito aparece mesmo quando o aplicativo está fechado.")
+                     : L10n.text("Quando este favorito estiver fechado, outros apps poderão usar a posição."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(L10n.text("Esta posição será preenchida por um app aberto."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 126, alignment: .topLeading)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func refreshRunningApps() {
+        runningApps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+            .sorted { ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending }
+    }
+}
+
+/// Eight fixed directions, matching the wheel's clockwise order from the top.
+private struct FavoriteEditorSector: Shape {
+    let position: Int
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let start = Angle.degrees(Double(position) * 45 - 90 - 22.5)
+        let end = Angle.degrees(Double(position) * 45 - 90 + 22.5)
+        var path = Path()
+        path.addArc(center: center, radius: rect.width / 2 - 3,
+                    startAngle: start, endAngle: end, clockwise: false)
+        path.addArc(center: center, radius: 58,
+                    startAngle: end, endAngle: start, clockwise: true)
+        path.closeSubpath()
+        return path
     }
 }

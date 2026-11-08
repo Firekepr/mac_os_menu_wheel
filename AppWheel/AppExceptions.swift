@@ -43,8 +43,8 @@ final class AppExceptions: ObservableObject {
 
     func chooseApplication() {
         let picker = NSOpenPanel()
-        picker.title = "Adicionar exceção"
-        picker.message = "Escolha um aplicativo em que a roda não deve abrir."
+        picker.title = L10n.text("Adicionar exceção")
+        picker.message = L10n.text("Escolha um aplicativo em que a roda não deve abrir.")
         picker.allowedContentTypes = [.applicationBundle]
         picker.canChooseDirectories = false
         picker.allowsMultipleSelection = false
@@ -53,7 +53,7 @@ final class AppExceptions: ObservableObject {
             MainActor.assumeIsolated {
                 guard response == .OK, let url = picker.url, let self else { return }
                 guard let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier else {
-                    self.error = "Não foi possível identificar esse aplicativo."
+                    self.error = L10n.text("Não foi possível identificar esse aplicativo.")
                     return
                 }
                 let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
@@ -77,19 +77,19 @@ struct AppExceptionsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text("Exceções por aplicativo")
+                Text(L10n.text("Exceções por aplicativo"))
                     .font(.title2.bold())
                 Spacer()
-                Button("Concluído") { dismiss() }
+                Button(L10n.text("Concluído")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
-            Text("Nestes apps, o botão direito funciona normalmente, sem abrir a roda. Você ainda pode escolhê-los na roda a partir de outros apps.")
+            Text(L10n.text("Nestes apps, o botão direito funciona normalmente, sem abrir a roda. Você ainda pode escolhê-los na roda a partir de outros apps."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             List {
                 if exceptions.apps.isEmpty {
-                    Text("Nenhuma exceção adicionada.")
+                    Text(L10n.text("Nenhuma exceção adicionada."))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 12)
                 }
@@ -105,8 +105,8 @@ struct AppExceptionsView: View {
                             Image(systemName: "minus.circle")
                         }
                         .buttonStyle(.borderless)
-                        .help("Remover \(app.name) das exceções")
-                        .accessibilityLabel("Remover \(app.name) das exceções")
+                        .help(L10n.text("Remover %@ das exceções", app.name))
+                        .accessibilityLabel(L10n.text("Remover %@ das exceções", app.name))
                     }
                     .padding(.vertical, 4)
                 }
@@ -115,19 +115,19 @@ struct AppExceptionsView: View {
             .frame(minHeight: 200)
 
             HStack {
-                Menu("Adicionar app aberto", systemImage: "plus") {
+                Menu(L10n.text("Adicionar app aberto"), systemImage: "plus") {
                     ForEach(runningApps, id: \.processIdentifier) { app in
                         if let identifier = app.bundleIdentifier, let url = app.bundleURL {
                             Button(app.localizedName ?? url.deletingPathExtension().lastPathComponent) {
                                 exceptions.add(bundleIdentifier: identifier,
-                                               name: app.localizedName ?? "Aplicativo", path: url.path)
+                                               name: app.localizedName ?? L10n.text("Aplicativo"), path: url.path)
                             }
                             .disabled(exceptions.contains(bundleIdentifier: identifier))
                         }
                     }
-                    if runningApps.isEmpty { Text("Nenhum aplicativo disponível") }
+                    if runningApps.isEmpty { Text(L10n.text("Nenhum aplicativo disponível")) }
                 }
-                Button("Escolher aplicativo…") { exceptions.chooseApplication() }
+                Button(L10n.text("Escolher aplicativo…")) { exceptions.chooseApplication() }
             }
             if let error = exceptions.error {
                 Text(error).font(.caption).foregroundStyle(.red)

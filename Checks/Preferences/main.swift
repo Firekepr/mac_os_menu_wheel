@@ -6,6 +6,15 @@ MainActor.assumeIsolated {
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let preferences = WheelPreferences(defaults: defaults)
+    precondition(preferences.language == .system)
+    precondition(defaults.persistentDomain(forName: suite)?["AppleLanguages"] == nil)
+    preferences.language = .english
+    precondition(defaults.stringArray(forKey: "AppleLanguages") == ["en"])
+    precondition(WheelPreferences(defaults: defaults).language == .english)
+    preferences.language = .portuguese
+    precondition(defaults.stringArray(forKey: "AppleLanguages") == ["pt"])
+    preferences.language = .system
+    precondition(defaults.persistentDomain(forName: suite)?["AppleLanguages"] == nil)
     precondition(preferences.triggerButton == .right)
     precondition(preferences.wheelDiameter == 380 && preferences.holdDelay == 0.3)
     preferences.wheelDiameter = 520

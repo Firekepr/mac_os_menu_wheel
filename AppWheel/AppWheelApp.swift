@@ -13,19 +13,19 @@ struct AppWheelApp: App {
         .restorationBehavior(.disabled)
         .commands {
             CommandGroup(after: .appInfo) {
-                Button("Abrir AppWheel") { gesture.openMainWindow() }
+                Button(L10n.text("Abrir AppWheel")) { gesture.openMainWindow() }
             }
         }
         MenuBarExtra("AppWheel", systemImage: "circle.hexagongrid.fill") {
-            Button("Abrir AppWheel") { gesture.openMainWindow() }
+            Button(L10n.text("Abrir AppWheel")) { gesture.openMainWindow() }
             Divider()
-            Button(gesture.isEnabled ? "Desativar gesto" : "Ativar gesto global") {
+            Button(gesture.isEnabled ? L10n.text("Desativar gesto") : L10n.text("Ativar gesto global")) {
                 if gesture.isEnabled { gesture.stop() } else { gesture.start() }
             }
-            Button("Prévia flutuante") { gesture.preview() }
-            SettingsLink { Text("Preferências…") }
+            Button(L10n.text("Prévia flutuante")) { gesture.preview() }
+            SettingsLink { Text(L10n.text("Preferências…")) }
             Divider()
-            Button("Sair do AppWheel") {
+            Button(L10n.text("Sair do AppWheel")) {
                 gesture.shutDown()
                 NSApplication.shared.terminate(nil)
             }
@@ -42,12 +42,12 @@ private struct AppSettingsView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             WheelPreferencesView(preferences: preferences)
-                .tabItem { Label("Geral", systemImage: "slider.horizontal.3") }
+                .tabItem { Label(L10n.text("Geral"), systemImage: "slider.horizontal.3") }
                 .tag(0)
             AppFavoritesView(favorites: favorites)
-                .tabItem { Label("Favoritos", systemImage: "star") }
+                .tabItem { Label(L10n.text("Favoritos"), systemImage: "star") }
                 .tag(1)
         }
-        .frame(width: 600, height: selectedTab == 0 ? 410 : 620)
+        .frame(width: 600, height: selectedTab == 0 ? 510 : 620)
     }
 }

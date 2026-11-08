@@ -166,7 +166,7 @@ struct WheelWithActions: View {
                         .shadow(color: .red.opacity(interaction.isCloseHovered ? 0.4 : 0), radius: 8)
                     VStack(spacing: 3) {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 18, weight: .semibold))
-                        Text("Fechar").font(.system(size: 11, weight: .semibold))
+                        Text(L10n.text("Fechar")).font(.system(size: 11, weight: .semibold))
                     }
                     .foregroundStyle(interaction.isCloseHovered ? Color.white : .red)
                     .offset(x: cos(angle) * radius, y: sin(angle) * radius)
@@ -174,10 +174,10 @@ struct WheelWithActions: View {
                 .frame(width: side, height: side)
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Fechar \(target.name)")
+                .accessibilityLabel(L10n.text("Fechar %@", target.name))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { model.requestQuit(target) }
-                .help("Fechar \(target.name)")
+                .help(L10n.text("Fechar %@", target.name))
             }
         }
         .frame(width: side, height: side)

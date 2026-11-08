@@ -23,7 +23,7 @@ struct ContentView: View {
             VStack(spacing: 8) {
                 Text("AppWheel")
                     .font(.system(size: 30, weight: .semibold, design: .rounded))
-                Text("Seus aplicativos, a um gesto de distância.")
+                Text(L10n.text("Seus aplicativos, a um gesto de distância."))
                     .foregroundStyle(.secondary)
             }
 
@@ -46,21 +46,21 @@ struct ContentView: View {
                 }
 
             VStack(spacing: 7) {
-                Text("Prévia interativa")
+                Text(L10n.text("Prévia interativa"))
                     .font(.headline)
-                Text("Clique para trocar de app. Pause sobre um app para revelar a ação de fechar.")
-                Text(preferences.gestureHint + " Centro superior ou Esc para cancelar.")
+                Text(L10n.text("Clique para trocar de app. Pause sobre um app para revelar a ação de fechar."))
+                Text(preferences.gestureHint + L10n.text(" Centro superior ou Esc para cancelar."))
                     .font(.caption)
             }
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
 
             HStack(spacing: 12) {
-                Button(gesture.isEnabled ? "Desativar gesto" : "Ativar gesto global") {
+                Button(gesture.isEnabled ? L10n.text("Desativar gesto") : L10n.text("Ativar gesto global")) {
                     if gesture.isEnabled { gesture.stop() } else { gesture.start() }
                 }
                 .buttonStyle(.borderedProminent)
-                Button("Prévia flutuante") { gesture.preview() }
+                Button(L10n.text("Prévia flutuante")) { gesture.preview() }
                     .buttonStyle(.bordered)
             }
             Text(gesture.status)
@@ -68,17 +68,17 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             if gesture.needsPermission {
-                Button("Abrir ajustes de Acessibilidade") { gesture.openAccessibilitySettings() }
+                Button(L10n.text("Abrir ajustes de Acessibilidade")) { gesture.openAccessibilitySettings() }
                     .font(.caption)
             }
 
             HStack {
-                Button("Atualizar aplicativos", systemImage: "arrow.clockwise") {
+                Button(L10n.text("Atualizar aplicativos"), systemImage: "arrow.clockwise") {
                     model.refresh()
                     interaction.reset()
                 }
-                SettingsLink { Label("Preferências", systemImage: "slider.horizontal.3") }
-                Button("Exceções por aplicativo", systemImage: "hand.raised") {
+                SettingsLink { Label(L10n.text("Preferências"), systemImage: "slider.horizontal.3") }
+                Button(L10n.text("Exceções por aplicativo"), systemImage: "hand.raised") {
                     showsExceptions = true
                 }
             }
@@ -92,7 +92,7 @@ struct ContentView: View {
             }
 
             if model.total > model.visibleRunningCount {
-                Text("\(model.visibleRunningCount) de \(model.total) aplicativos abertos na roda.")
+                Text(L10n.text("%@ de %@ aplicativos abertos na roda.", String(model.visibleRunningCount), String(model.total)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

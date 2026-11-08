@@ -15,7 +15,7 @@ private final class WheelPanel: NSPanel {
 final class GestureController: ObservableObject {
     @Published private(set) var isEnabled = false
     @Published private(set) var needsPermission = false
-    @Published private(set) var status = "Ative o gesto para usar a roda sobre outros aplicativos."
+    @Published private(set) var status = L10n.text("Ative o gesto para usar a roda sobre outros aplicativos.")
     let preferences: WheelPreferences
     let favorites: AppFavorites
     let exceptions: AppExceptions
@@ -83,7 +83,7 @@ final class GestureController: ObservableObject {
         guard !isEnabled else { return }
         guard AXIsProcessTrusted() else {
             needsPermission = true
-            status = "Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do AppWheel."
+            status = L10n.text("Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do AppWheel.")
             // Restoring a preference must never produce a permission-dialog loop.
             if requestPermission && !didRequestPermission {
                 didRequestPermission = true
@@ -109,12 +109,12 @@ final class GestureController: ObservableObject {
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
             needsPermission = !AXIsProcessTrusted()
-            status = "Não foi possível capturar o mouse. Confira Acessibilidade e tente ativar novamente."
+            status = L10n.text("Não foi possível capturar o mouse. Confira Acessibilidade e tente ativar novamente.")
             return
         }
         guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0) else {
             CFMachPortInvalidate(eventTap)
-            status = "Não foi possível iniciar a captura. Tente ativar novamente."
+            status = L10n.text("Não foi possível iniciar a captura. Tente ativar novamente.")
             return
         }
         tap = eventTap
@@ -123,14 +123,14 @@ final class GestureController: ObservableObject {
         CGEvent.tapEnable(tap: eventTap, enable: true)
         isEnabled = true
         needsPermission = false
-        status = "Gesto ativo. As preferências são aplicadas a cada novo gesto."
+        status = L10n.text("Gesto ativo. As preferências são aplicadas a cada novo gesto.")
     }
 
     func stop() {
         defaults.set(false, forKey: enabledPreferenceKey)
         shutDown()
         needsPermission = false
-        status = "Gesto desativado. O mouse funciona normalmente."
+        status = L10n.text("Gesto desativado. O mouse funciona normalmente.")
     }
 
     /// Release the capture on quit without changing the user's saved choice.
@@ -180,7 +180,7 @@ final class GestureController: ObservableObject {
         configuration.promptsUserIfNeeded = false
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
             guard let error else { return }
-            Task { @MainActor in self?.status = "Não foi possível trazer o AppWheel à frente: \(error.localizedDescription)" }
+            Task { @MainActor in self?.status = L10n.text("Não foi possível trazer o AppWheel à frente: %@", error.localizedDescription) }
         }
     }
 
@@ -272,7 +272,7 @@ final class GestureController: ObservableObject {
                     DispatchQueue.main.async { [weak self] in
                         guard let self else { return }
                         let error = self.model.requestQuit(closeTarget)
-                        self.status = error ?? "Encerramento solicitado para \(closeTarget.name)."
+                        self.status = error ?? L10n.text("Encerramento solicitado para %@.", closeTarget.name)
                     }
                 } else if let chosen {
                     // Consume the release and start the exit before activating
@@ -281,7 +281,7 @@ final class GestureController: ObservableObject {
                         guard let self else { return }
                         self.model.activate(chosen) { [weak self] error in
                             guard let self, self.isEnabled else { return }
-                            self.status = error ?? "Gesto ativo · última seleção: \(chosen.name)."
+                            self.status = error ?? L10n.text("Gesto ativo · última seleção: %@.", chosen.name)
                         }
                     }
                 }

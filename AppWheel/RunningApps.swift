@@ -6,7 +6,7 @@ struct WheelApp: Identifiable {
     let application: NSRunningApplication?
     var favorite: FavoriteApp? = nil
     var id: String { favorite?.id ?? application?.bundleIdentifier ?? application?.bundleURL?.path ?? "pid:\(application?.processIdentifier ?? -1)" }
-    var name: String { application?.localizedName ?? favorite?.name ?? "Aplicativo" }
+    var name: String { application?.localizedName ?? favorite?.name ?? L10n.text("Aplicativo") }
     var isQuitProtected: Bool {
         application?.bundleIdentifier == "com.apple.finder" || favorite?.id == "com.apple.finder"
     }
@@ -78,17 +78,17 @@ final class RunningApps: ObservableObject {
                      isRunning: (NSRunningApplication) -> Bool = { !$0.isTerminated },
                      terminate: (NSRunningApplication) -> Bool = { $0.terminate() }) -> String? {
         guard !app.isQuitProtected else {
-            let message = "O Finder não pode ser fechado pelo AppWheel."
+            let message = L10n.text("O Finder não pode ser fechado pelo AppWheel.")
             activationError = message
             return message
         }
         guard let running = app.application, isRunning(running) else {
-            let message = "\(app.name) já está fechado."
+            let message = L10n.text("%@ já está fechado.", app.name)
             activationError = message
             return message
         }
         guard terminate(running) else {
-            let message = "Não foi possível solicitar o encerramento de \(app.name)."
+            let message = L10n.text("Não foi possível solicitar o encerramento de %@.", app.name)
             activationError = message
             return message
         }
@@ -100,7 +100,7 @@ final class RunningApps: ObservableObject {
         activationError = nil
         guard app.favorite?.visibility == .always || app.application.map({ !$0.isTerminated }) == true,
               let url = app.url, FileManager.default.fileExists(atPath: url.path) else {
-            let message = "\(app.name) não está mais disponível. Atualize a lista de aplicativos."
+            let message = L10n.text("%@ não está mais disponível. Atualize a lista de aplicativos.", app.name)
             activationError = message
             completion?(message)
             return
@@ -121,9 +121,9 @@ final class RunningApps: ObservableObject {
             Task { @MainActor in
                 let message: String?
                 if let error {
-                    message = "Não foi possível ativar \(app.name): \(error.localizedDescription)"
+                    message = L10n.text("Não foi possível ativar %@: %@", app.name, error.localizedDescription)
                 } else if running == nil {
-                    message = "O macOS não confirmou a ativação de \(app.name)."
+                    message = L10n.text("O macOS não confirmou a ativação de %@.", app.name)
                 } else {
                     message = nil
                 }

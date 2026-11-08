@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 enum FavoriteVisibility: String, Codable, CaseIterable, Identifiable {
     case always, whenRunning
     var id: String { rawValue }
-    var title: String { self == .always ? "Sempre na roda" : "Só quando aberto" }
+    var title: String { self == .always ? L10n.text("Sempre na roda") : L10n.text("Só quando aberto") }
 }
 
 struct FavoriteApp: Codable, Identifiable {
@@ -60,8 +60,8 @@ enum FavoriteLayout {
 
 @MainActor
 final class AppFavorites: ObservableObject {
-    static let directions = ["Acima", "Acima à direita", "Direita", "Abaixo à direita",
-                             "Abaixo", "Abaixo à esquerda", "Esquerda", "Acima à esquerda"]
+    static let directions = [L10n.text("Acima"), L10n.text("Acima à direita"), L10n.text("Direita"), L10n.text("Abaixo à direita"),
+                             L10n.text("Abaixo"), L10n.text("Abaixo à esquerda"), L10n.text("Esquerda"), L10n.text("Acima à esquerda")]
     @Published private(set) var apps: [FavoriteApp]
     @Published private(set) var error: String?
     private let defaults: UserDefaults
@@ -107,8 +107,8 @@ final class AppFavorites: ObservableObject {
     func chooseApplication(at position: Int) {
         guard (0..<8).contains(position) else { return }
         let picker = NSOpenPanel()
-        picker.title = "Favorito — \(Self.directions[position])"
-        picker.message = "Escolha o app que ficará fixo nesta direção."
+        picker.title = L10n.text("Favorito — %@", Self.directions[position])
+        picker.message = L10n.text("Escolha o app que ficará fixo nesta direção.")
         picker.allowedContentTypes = [.applicationBundle]
         picker.canChooseDirectories = false
         picker.allowsMultipleSelection = false
@@ -117,7 +117,7 @@ final class AppFavorites: ObservableObject {
             MainActor.assumeIsolated {
                 guard response == .OK, let url = picker.url, let self else { return }
                 guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier else {
-                    self.error = "Não foi possível identificar esse aplicativo."
+                    self.error = L10n.text("Não foi possível identificar esse aplicativo.")
                     return
                 }
                 let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
@@ -139,8 +139,8 @@ struct AppFavoritesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Apps favoritos em posições fixas").font(.title2.bold())
-            Text("Escolha o app de cada direção e quando ele aparece. Em “Só quando aberto”, o espaço fica livre para outros apps enquanto o favorito estiver fechado.")
+            Text(L10n.text("Apps favoritos em posições fixas")).font(.title2.bold())
+            Text(L10n.text("Escolha o app de cada direção e quando ele aparece. Em “Só quando aberto”, o espaço fica livre para outros apps enquanto o favorito estiver fechado."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             List(0..<8, id: \.self) { position in
@@ -150,10 +150,10 @@ struct AppFavoritesView: View {
                         .frame(width: 22).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(AppFavorites.directions[position]).font(.caption).foregroundStyle(.secondary)
-                        Text(favorites.app(at: position)?.name ?? "Automático")
+                        Text(favorites.app(at: position)?.name ?? L10n.text("Automático"))
                             .fontWeight(.medium)
                         if let app = favorites.app(at: position) {
-                            Picker("Disponibilidade", selection: Binding(
+                            Picker(L10n.text("Disponibilidade"), selection: Binding(
                                 get: { favorites.app(at: position)?.visibility ?? app.visibility },
                                 set: { favorites.setVisibility($0, at: position) }
                             )) {
@@ -164,33 +164,33 @@ struct AppFavoritesView: View {
                             .labelsHidden()
                             .pickerStyle(.menu)
                             .fixedSize()
-                            .accessibilityLabel("Quando mostrar \(app.name): \(AppFavorites.directions[position])")
+                            .accessibilityLabel(L10n.text("Quando mostrar %@: %@", app.name, AppFavorites.directions[position]))
                         }
                     }
                     Spacer()
                     Menu {
                         ForEach(runningApps, id: \.processIdentifier) { app in
                             if let id = app.bundleIdentifier, let url = app.bundleURL {
-                                Button(app.localizedName ?? "Aplicativo") {
+                                Button(app.localizedName ?? L10n.text("Aplicativo")) {
                                     favorites.set(position: position, bundleIdentifier: id,
-                                                  name: app.localizedName ?? "Aplicativo", path: url.path)
+                                                  name: app.localizedName ?? L10n.text("Aplicativo"), path: url.path)
                                 }
                             }
                         }
                         Divider()
-                        Button("Escolher aplicativo…") { favorites.chooseApplication(at: position) }
-                    } label: { Text("Escolher…") }
+                        Button(L10n.text("Escolher aplicativo…")) { favorites.chooseApplication(at: position) }
+                    } label: { Text(L10n.text("Escolher…")) }
                     .fixedSize()
-                    .accessibilityLabel("Escolher favorito: \(AppFavorites.directions[position])")
+                    .accessibilityLabel(L10n.text("Escolher favorito: %@", AppFavorites.directions[position]))
                     Button { favorites.remove(at: position) } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless)
                         .disabled(favorites.app(at: position) == nil)
-                        .accessibilityLabel("Remover favorito: \(AppFavorites.directions[position])")
+                        .accessibilityLabel(L10n.text("Remover favorito: %@", AppFavorites.directions[position]))
                 }
                 .padding(.vertical, 4)
             }
             .listStyle(.inset)
-            Text("Posições salvas automaticamente. Escolher um app já fixado move-o para a nova posição. As alterações valem na próxima abertura da roda.")
+            Text(L10n.text("Posições salvas automaticamente. Escolher um app já fixado move-o para a nova posição. As alterações valem na próxima abertura da roda."))
                 .font(.caption).foregroundStyle(.secondary)
             if let error = favorites.error { Text(error).font(.caption).foregroundStyle(.red) }
         }

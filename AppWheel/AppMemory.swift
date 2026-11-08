@@ -12,9 +12,9 @@ struct AppMemoryUsage: Equatable, Sendable {
     }
 
     var help: String {
-        "Estimativa de memória de \(processCount) processo(s), incluindo auxiliares identificados. "
-        + "Memória compartilhada pode ser contada mais de uma vez."
-        + (isPartial ? " Alguns processos não puderam ser consultados." : "")
+        L10n.text("Estimativa de memória de %@ processo(s), incluindo auxiliares identificados. ", String(processCount))
+        + L10n.text("Memória compartilhada pode ser contada mais de uma vez.")
+        + (isPartial ? L10n.text(" Alguns processos não puderam ser consultados.") : "")
     }
 }
 

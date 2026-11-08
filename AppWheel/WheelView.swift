@@ -20,9 +20,9 @@ struct WheelView: View {
 
     private var memoryLabel: String? {
         guard selectedPID != nil else { return nil }
-        guard memoryPID == selectedPID else { return "RAM: consultando…" }
+        guard memoryPID == selectedPID else { return L10n.text("RAM: consultando…") }
         if let memory { return "RAM ≈ \(memory.formatted)" }
-        return isLoadingMemory ? "RAM: consultando…" : "RAM indisponível"
+        return isLoadingMemory ? L10n.text("RAM: consultando…") : L10n.text("RAM indisponível")
     }
 
     var body: some View {
@@ -101,7 +101,7 @@ struct WheelView: View {
                     .font(.title2)
                     .foregroundStyle(selected == nil ? Color.secondary : Color.accentColor)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
-                Text(selected?.name ?? "Escolha um app")
+                Text(selected?.name ?? L10n.text("Escolha um app"))
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
@@ -113,7 +113,7 @@ struct WheelView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                        .help(memory?.help ?? "Consumo de memória do aplicativo selecionado.")
+                        .help(memory?.help ?? L10n.text("Consumo de memória do aplicativo selecionado."))
                 }
             }
             .offset(y: selected == nil ? -16 : 0)
@@ -125,7 +125,7 @@ struct WheelView: View {
                     CenterOpenArea()
                         .fill(Color.accentColor.opacity(isOpenMainWindowHovered ? 0.45 : 0.12))
                         .overlay(alignment: .bottom) {
-                            Label("Abrir", systemImage: "macwindow")
+                            Label(L10n.text("Abrir"), systemImage: "macwindow")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(isOpenMainWindowHovered ? Color.white : Color.primary)
                                 .padding(.top, 6)
@@ -135,7 +135,7 @@ struct WheelView: View {
                         }
                         .clipShape(CenterOpenArea())
                         .overlay { CenterOpenArea().stroke(.primary.opacity(0.12), lineWidth: 1) }
-                        .help("Abrir AppWheel")
+                        .help(L10n.text("Abrir AppWheel"))
                 }
             }
             .overlay {
@@ -148,8 +148,8 @@ struct WheelView: View {
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.24, bounce: 0.15), value: selectedID)
         .animation(.easeOut(duration: 0.12), value: isOpenMainWindowHovered)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Roda de aplicativos")
-        .accessibilityValue([selected?.name ?? "Nenhum aplicativo selecionado", memoryLabel].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel(L10n.text("Roda de aplicativos"))
+        .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"), memoryLabel].compactMap { $0 }.joined(separator: ", "))
         .task(id: selectedPID) {
             memory = nil
             memoryPID = selectedPID
@@ -174,12 +174,12 @@ struct WheelView: View {
         }
         .accessibilityActions {
             ForEach(model.apps) { app in
-                Button("Abrir \(app.name)") { model.activate(app) }
+                Button(L10n.text("Abrir %@", app.name)) { model.activate(app) }
                 if app.canRequestQuit {
-                    Button("Fechar \(app.name)") { model.requestQuit(app) }
+                    Button(L10n.text("Fechar %@", app.name)) { model.requestQuit(app) }
                 }
             }
-            Button("Abrir AppWheel") {
+            Button(L10n.text("Abrir AppWheel")) {
                 NotificationCenter.default.post(name: .appWheelOpenMainWindow, object: nil)
             }
         }

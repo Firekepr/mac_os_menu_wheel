@@ -86,7 +86,7 @@ final class GestureController: ObservableObject {
             return
         }
         let events: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged,
-                                     .rightMouseDown, .rightMouseUp, .rightMouseDragged,
+                                     .  rightMouseDown, .rightMouseUp, .rightMouseDragged,
                                      .otherMouseDown, .otherMouseUp, .otherMouseDragged, .mouseMoved, .keyDown]
         let mask = events.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         let callback: CGEventTapCallBack = { _, type, event, context in

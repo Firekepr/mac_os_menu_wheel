@@ -65,7 +65,7 @@ final class WheelInteraction: ObservableObject {
         }
         let targetIndex = slots.firstIndex { $0.app?.id == closeTargetID && closeTargetID != nil }
         let target = targetIndex.flatMap { slots[$0].app }
-        if target?.application.map({ !$0.isTerminated }) == true,
+        if target?.canRequestQuit == true,
            let targetIndex,
            WheelActionGeometry.closePath(diameter: diameter, index: targetIndex, count: slots.count).cgPath.contains(point) {
             hoverClose()
@@ -82,7 +82,7 @@ final class WheelInteraction: ObservableObject {
             reset()
             return
         }
-        select(app?.id, canRevealClose: insideWheel && app?.application.map({ !$0.isTerminated }) == true)
+        select(app?.id, canRevealClose: insideWheel && app?.canRequestQuit == true)
     }
 }
 
@@ -131,7 +131,7 @@ struct WheelWithActions: View {
     private var closeIndex: Int? {
         model.slots.firstIndex { slot in
             slot.app?.id == interaction.closeTargetID && interaction.closeTargetID != nil
-                && slot.app?.application?.isTerminated == false
+                && slot.app?.canRequestQuit == true
         }
     }
 

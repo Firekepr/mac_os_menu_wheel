@@ -84,6 +84,19 @@ MainActor.assumeIsolated {
     precondition(model.requestQuit(closed, terminate: { _ in requests += 1; return true }) != nil)
     precondition(requests == 2, "A closed favorite received a quit request")
 
+    let finder = WheelApp(application: NSRunningApplication.current,
+                          favorite: FavoriteApp(id: "com.apple.finder", name: "Nome personalizado", path: "/Finder.app", position: 0))
+    precondition(finder.isQuitProtected && !finder.canRequestQuit)
+    precondition(model.requestQuit(finder, isRunning: { _ in true }, terminate: { _ in requests += 1; return true }) != nil)
+    precondition(requests == 2, "A Finder quit request reached the termination API")
+    state.reset()
+    state.diameter = 380
+    let finderSlots = (0..<8).map { WheelSlot(id: $0, app: $0 == 0 ? finder : nil) }
+    let finderCenter = WheelActionGeometry.outerSize(diameter: 380) / 2
+    state.update(at: CGPoint(x: finderCenter, y: finderCenter - 135), slots: finderSlots, allowsBeyondEdge: true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+    precondition(state.id == "com.apple.finder" && state.closeTargetID == nil, "Finder exposed a close action")
+
     var posted: [CGEvent] = []
     let controller = GestureController(defaults: defaults, frontmostBundleIdentifier: { "test.editor" },
                                        postEvent: { posted.append($0) })

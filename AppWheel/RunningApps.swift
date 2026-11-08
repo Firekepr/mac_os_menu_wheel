@@ -7,6 +7,10 @@ struct WheelApp: Identifiable {
     var favorite: FavoriteApp? = nil
     var id: String { favorite?.id ?? application?.bundleIdentifier ?? application?.bundleURL?.path ?? "pid:\(application?.processIdentifier ?? -1)" }
     var name: String { application?.localizedName ?? favorite?.name ?? "Aplicativo" }
+    var isQuitProtected: Bool {
+        application?.bundleIdentifier == "com.apple.finder" || favorite?.id == "com.apple.finder"
+    }
+    var canRequestQuit: Bool { !isQuitProtected && application?.isTerminated == false }
     var url: URL? {
         if let url = application?.bundleURL { return url }
         guard let favorite else { return nil }
@@ -73,6 +77,11 @@ final class RunningApps: ObservableObject {
     func requestQuit(_ app: WheelApp,
                      isRunning: (NSRunningApplication) -> Bool = { !$0.isTerminated },
                      terminate: (NSRunningApplication) -> Bool = { $0.terminate() }) -> String? {
+        guard !app.isQuitProtected else {
+            let message = "O Finder não pode ser fechado pelo AppWheel."
+            activationError = message
+            return message
+        }
         guard let running = app.application, isRunning(running) else {
             let message = "\(app.name) já está fechado."
             activationError = message

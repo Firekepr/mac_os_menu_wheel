@@ -35,12 +35,26 @@ final class RunningApps: ObservableObject {
     var visibleRunningCount: Int { apps.filter { $0.application != nil }.count }
     private let favorites: AppFavorites
     private var favoritesSubscription: AnyCancellable?
+    private var workspaceSubscription: AnyCancellable?
+    @Published private(set) var runningApplicationIDs: Set<String> = []
     @Published private(set) var total = 0
     @Published private(set) var activationError: String?
 
     init(favorites: AppFavorites? = nil, observesFavorites: Bool = true) {
         self.favorites = favorites ?? AppFavorites()
         refresh()
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceSubscription = center.publisher(for: NSWorkspace.didLaunchApplicationNotification)
+            .merge(with: center.publisher(for: NSWorkspace.didTerminateApplicationNotification))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Update indicators without rearranging a wheel already in use.
+                let ids = Set(NSWorkspace.shared.runningApplications
+                    .filter { !$0.isTerminated && $0.activationPolicy == .regular
+                        && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+                    .map { WheelApp(application: $0).id })
+                if self?.runningApplicationIDs != ids { self?.runningApplicationIDs = ids }
+            }
         if observesFavorites {
             favoritesSubscription = self.favorites.$apps.sink { [weak self] _ in
                 // Published sends before storage changes. Refresh the preview on the next turn.
@@ -57,6 +71,8 @@ final class RunningApps: ObservableObject {
             }
         var seen = Set<String>()
         let entries = running.map { WheelApp(application: $0) }.filter { seen.insert($0.id).inserted }
+        let ids = Set(entries.map(\.id))
+        if runningApplicationIDs != ids { runningApplicationIDs = ids }
         total = entries.count
         let pinned = Dictionary(uniqueKeysWithValues: favorites.apps.map { ($0.position, $0.id) })
         let conditional = Set(favorites.apps.filter { $0.visibility == .whenRunning }.map(\.id))
@@ -72,6 +88,8 @@ final class RunningApps: ObservableObject {
             return WheelSlot(id: position, app: app)
         }
     }
+
+    func isRunning(_ app: WheelApp) -> Bool { runningApplicationIDs.contains(app.id) }
 
     @discardableResult
     func requestQuit(_ app: WheelApp,

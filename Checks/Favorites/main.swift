@@ -34,6 +34,15 @@ MainActor.assumeIsolated {
     let model = RunningApps(favorites: favorites, observesFavorites: false)
     precondition(model.slots.count == 8 && model.slots[2].app?.id == "test.browser")
     precondition(model.slots[2].app?.application == nil && model.slots[2].app?.favorite != nil)
+    precondition(!model.isRunning(model.slots[2].app!), "A closed favorite got a running indicator")
+    if let live = model.apps.first(where: { $0.application?.isTerminated == false }) {
+        precondition(model.isRunning(live), "A running app lost its indicator")
+    }
+    let frozenSlots = model.slots.map { $0.app?.id }
+    // Simulate the notification, without opening or closing a real application.
+    NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didLaunchApplicationNotification, object: nil)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    precondition(model.slots.map { $0.app?.id } == frozenSlots, "Status updates rearranged an active wheel")
     // Editing favorites must not move targets under an in-progress global gesture.
     favorites.set(position: 7, bundleIdentifier: "test.browser", name: "Navegador", path: "/nonexistent/Browser.app")
     precondition(model.slots[2].app?.id == "test.browser")

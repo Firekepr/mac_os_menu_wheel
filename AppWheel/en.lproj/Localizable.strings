@@ -116,3 +116,5 @@
 "Não foi possível alterar a inicialização automática: %@" = "Could not change launch at login: %@";
 "Mostrar contagem ao segurar" = "Show hold countdown";
 "Exibe um arco ao redor do ponteiro enquanto aguarda a abertura da roda." = "Show an arc around the pointer while waiting for the wheel to open.";
+"Em execução" = "Running";
+"Fechado" = "Closed";

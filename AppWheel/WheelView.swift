@@ -91,6 +91,11 @@ struct WheelView: View {
                             }
                         }
                         .modifier(SelectedIconFloat(isSelected: active && isActive))
+                        .overlay(alignment: .bottom) {
+                            if app.favorite != nil && model.isRunning(app) {
+                                RunningAppIndicator().offset(y: 12)
+                            }
+                        }
                         .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
                 } else {
                     Circle().fill(.secondary.opacity(0.25)).frame(width: 5, height: 5)
@@ -151,7 +156,9 @@ struct WheelView: View {
         .animation(.easeOut(duration: 0.12), value: isOpenMainWindowHovered)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.text("Roda de aplicativos"))
-        .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"), memoryLabel].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"),
+                             selected.map { L10n.text(model.isRunning($0) ? "Em execução" : "Fechado") },
+                             memoryLabel].compactMap { $0 }.joined(separator: ", "))
         .task(id: selectedPID) {
             memory = nil
             memoryPID = selectedPID
@@ -191,6 +198,16 @@ struct WheelView: View {
         }
     }
 
+}
+
+/// A static Dock-style marker; no timers or continuous animations.
+struct RunningAppIndicator: View {
+    var body: some View {
+        Circle()
+            .fill(.primary.opacity(0.8))
+            .frame(width: 4, height: 4)
+            .accessibilityHidden(true)
+    }
 }
 
 private struct CenterOpenArea: Shape {

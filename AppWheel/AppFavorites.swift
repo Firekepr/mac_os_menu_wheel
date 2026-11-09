@@ -196,6 +196,9 @@ struct AppFavoritesView: View {
 
     private func positionButton(_ position: Int) -> some View {
         let app = favorites.app(at: position)
+        let isRunning = app.map { favorite in
+            runningApps.contains { !$0.isTerminated && $0.bundleIdentifier == favorite.id }
+        } ?? false
         let selected = selectedPosition == position
         let hovered = hoveredPosition == position
         let sector = FavoriteEditorSector(position: position)
@@ -223,6 +226,8 @@ struct AppFavoritesView: View {
                         .font(.system(size: 10, weight: selected ? .semibold : .regular))
                         .lineLimit(1).truncationMode(.tail)
                         .frame(width: 80)
+                    RunningAppIndicator()
+                        .opacity(isRunning ? 1 : 0)
                 }
                 .offset(x: cos(angle) * 115, y: sin(angle) * 115)
                 .allowsHitTesting(false)
@@ -236,7 +241,8 @@ struct AppFavoritesView: View {
         }
         .help(L10n.text("Favorito — %@", AppFavorites.directions[position]) + ": " + (app?.name ?? L10n.text("Automático")))
         .accessibilityLabel(L10n.text("Escolher favorito: %@", AppFavorites.directions[position]))
-        .accessibilityValue(app?.name ?? L10n.text("Automático"))
+        .accessibilityValue((app?.name ?? L10n.text("Automático"))
+                            + (app == nil ? "" : ", " + L10n.text(isRunning ? "Em execução" : "Fechado")))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 

@@ -280,7 +280,8 @@ final class GestureController: ObservableObject {
         guard event.getIntegerValueField(.eventSourceUserData) != replayMarker else { return unchanged }
 
         if type == .scrollWheel {
-            guard wheelIsOpen, model.pageCount > 1 else { return unchanged }
+            guard wheelIsOpen,
+                  (selection.isChoosingWindow ? selection.windowPageCount : model.pageCount) > 1 else { return unchanged }
             handlePageScroll(event)
             return nil
         }
@@ -360,7 +361,7 @@ final class GestureController: ObservableObject {
                 return nil
             }
             if consumeUntilUp {
-                if wheelIsOpen { updateSelection(at: appKitPoint(event.location)) }
+                if wheelIsOpen { updateSelection(at: appKitPoint(event.location), isRelease: true) }
                 completeSelection()
                 consumeUntilUp = false
                 return nil
@@ -409,7 +410,12 @@ final class GestureController: ObservableObject {
             pageScrollDelta = 0
         }
 
-        guard model.movePage(by: delta < 0 ? 1 : -1) else { return }
+        let step = delta < 0 ? 1 : -1
+        if selection.isChoosingWindow {
+            selection.moveWindowPage(by: step)
+            return
+        }
+        guard model.movePage(by: step) else { return }
         selection.reset()
         selectionOrigin = appKitPoint(event.location)
         didMoveForSelection = false
@@ -421,8 +427,18 @@ final class GestureController: ObservableObject {
             ? model.apps.first { $0.id == selection.closeTargetID } : nil
         let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
         let scriptAction = wheelIsOpen ? selection.hoveredScriptAction : nil
+        let choosingWindow = wheelIsOpen && selection.isChoosingWindow
+        let windowChoice = choosingWindow ? selection.windowChoice : nil
         dismiss()
-        if shouldToggleMainWindow {
+        if choosingWindow {
+            if let (window, action) = windowChoice {
+                DispatchQueue.main.async { [weak self] in
+                    self?.model.perform(action, on: window) { [weak self] error in
+                        self?.status = error ?? L10n.text("Gesto ativo.")
+                    }
+                }
+            }
+        } else if shouldToggleMainWindow {
             DispatchQueue.main.async { [weak self] in self?.toggleMainWindow() }
         } else if let closeTarget {
             DispatchQueue.main.async { [weak self] in
@@ -484,7 +500,7 @@ final class GestureController: ObservableObject {
         keyboardShortcutIsHeld = false
         guard keyboardWheelIsOpen else { return }
         // Preserve the last pointer selection; opening itself never selects.
-        updateSelection(at: NSEvent.mouseLocation)
+        updateSelection(at: NSEvent.mouseLocation, isRelease: true)
         keyboardWheelIsOpen = false
         completeSelection()
         releaseInputCaptureIfUnused()
@@ -554,8 +570,9 @@ final class GestureController: ObservableObject {
         }
     }
 
-    private func updateSelection(at point: CGPoint) {
+    private func updateSelection(at point: CGPoint, isRelease: Bool = false) {
         guard let panel else { return }
+        if isRelease && selection.isChoosingWindow && selection.hoveredWindow == nil { return }
         // Releasing without deliberate movement cancels rather than selecting
         // an app, including when the gesture begins at a display edge.
         if hypot(point.x - selectionOrigin.x, point.y - selectionOrigin.y) > 12 {

@@ -122,6 +122,7 @@ struct WheelView: View {
     @ObservedObject var model: RunningApps
     let selectedID: String?
     var selectedActionTitle: String?
+    var selectedWindowTitle: String?
     var isOpenMainWindowHovered = false
     var isActive = true
     var theme: WheelTheme = .glass
@@ -286,7 +287,7 @@ struct WheelView: View {
             }
             .animation(.easeInOut(duration: reduceMotion ? 0.12 : 0.20), value: model.pageTurnRevision)
 
-            VStack(spacing: selectedActionTitle == nil ? 6 : 3) {
+            VStack(spacing: selectedActionTitle == nil && selectedWindowTitle == nil ? 6 : 3) {
                 Image(systemName: selected == nil ? "cursorarrow.rays" : "arrow.up.forward.app")
                     .font(.title2)
                     .foregroundStyle(selected == nil ? Color.secondary : theme.accent)
@@ -296,6 +297,13 @@ struct WheelView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .contentTransition(.opacity)
+                if let selectedWindowTitle {
+                    Text(selectedWindowTitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .multilineTextAlignment(.center)
+                }
                 if let selectedActionTitle {
                     Text(selectedActionTitle)
                         .font(.system(size: 11, weight: .semibold))
@@ -312,7 +320,7 @@ struct WheelView: View {
                         .minimumScaleFactor(0.8)
                         .help(memory?.help ?? L10n.text("Consumo de memória do aplicativo selecionado."))
                 }
-                if let pageLabel {
+                if selectedWindowTitle == nil, let pageLabel {
                     Label(pageLabel, systemImage: "arrow.up.arrow.down")
                         .font(.system(size: 10, weight: .semibold))
                         .monospacedDigit()
@@ -375,7 +383,7 @@ struct WheelView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.text("Roda de aplicativos"))
         .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"),
-                             selectedActionTitle,
+                             selectedWindowTitle, selectedActionTitle,
                              selected.map { L10n.text(model.isRunning($0) ? "Em execução" : "Fechado") },
                              selected.flatMap { isPlaying($0) ? L10n.text("Reproduzindo mídia") : nil },
                              memoryLabel, pageLabel].compactMap { $0 }.joined(separator: ", "))

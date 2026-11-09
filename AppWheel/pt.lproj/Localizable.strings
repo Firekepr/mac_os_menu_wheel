@@ -162,3 +162,6 @@
 "Testar" = "Testar";
 "Parar" = "Parar";
 "Tempo para revelar ações" = "Tempo para revelar ações";
+"Escolha uma janela" = "Escolha uma janela";
+"Janela %@" = "Janela %@";
+"Não foi possível executar a ação na janela selecionada." = "Não foi possível executar a ação na janela selecionada.";

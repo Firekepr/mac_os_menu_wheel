@@ -162,3 +162,6 @@
 "Testar" = "Test";
 "Parar" = "Stop";
 "Tempo para revelar ações" = "Action reveal delay";
+"Escolha uma janela" = "Choose a window";
+"Janela %@" = "Window %@";
+"Não foi possível executar a ação na janela selecionada." = "Could not run the action on the selected window.";

@@ -35,8 +35,11 @@ struct ContentView: View {
                     }
                 }
                 .onTapGesture { location in
+                    if interaction.changeWindowPage(at: location, slots: model.slots) { return }
                     select(at: location)
-                    if interaction.isOpenMainWindowHovered {
+                    if interaction.isChoosingWindow {
+                        if let (window, action) = interaction.windowChoice { model.perform(action, on: window) }
+                    } else if interaction.isOpenMainWindowHovered {
                         gesture.toggleMainWindow()
                     } else if let action = interaction.hoveredScriptAction, let selected {
                         model.perform(action, on: selected)

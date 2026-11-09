@@ -242,18 +242,6 @@ struct WheelView: View {
                                     .background(Color.accentColor, in: Circle())
                             }
                         }
-                        .overlay(alignment: .topTrailing) {
-                            if isPlaying(app) {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 17, height: 17)
-                                    .background(Color(red: 0.08, green: 0.43, blue: 0.28), in: Circle())
-                                    .overlay { Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1) }
-                            }
-                        }
-                        // Render the icon and its corner badges together before moving them.
-                        .drawingGroup()
                         .modifier(SelectedIconFloat(isSelected: active && isActive))
                         .overlay(alignment: .bottom) {
                             if app.favorite != nil && model.isRunning(app) {
@@ -261,6 +249,18 @@ struct WheelView: View {
                             }
                         }
                         .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
+
+                    if isPlaying(app) {
+                        // Keep the marker next to the icon, outside its floating animation.
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 17, height: 17)
+                            .background(Color(red: 0.08, green: 0.43, blue: 0.28), in: Circle())
+                            .overlay { Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1) }
+                            .offset(x: cos(angle) * iconRadius + 25, y: sin(angle) * iconRadius - 25)
+                            .allowsHitTesting(false)
+                    }
                 } else {
                     Circle().fill(.secondary.opacity(0.25)).frame(width: 5, height: 5)
                         .offset(x: cos(angle) * 135, y: sin(angle) * 135)

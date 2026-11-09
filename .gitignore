@@ -3,3 +3,6 @@ build/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+
+# Signing identity selected for this Mac
+/Config/Signing.local.xcconfig

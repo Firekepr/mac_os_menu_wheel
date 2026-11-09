@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import SwiftUI
+import Combine
 
 extension Notification.Name {
     static let appWheelOpenMainWindow = Notification.Name("AppWheel.openMainWindow")
@@ -58,6 +59,12 @@ final class GestureController: ObservableObject {
     private let postEvent: (CGEvent) -> Void
     private let enabledPreferenceKey = "globalGestureEnabled"
     private var didRequestPermission = false
+    private let keyboardHotKey = WheelHotKey()
+    private var shortcutSubscription: AnyCancellable?
+    private var shortcutExceptionsSubscription: AnyCancellable?
+    private var registeredKeyboardShortcut: WheelKeyboardShortcut?
+    private var keyboardWheelIsOpen = false
+    private var keyboardShortcutIsHeld = false
 
     init(defaults: UserDefaults = .standard,
          frontmostBundleIdentifier: @escaping () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier },
@@ -84,8 +91,18 @@ final class GestureController: ObservableObject {
                                                           name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                           name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
-        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(cancelForEnvironmentChange),
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(workspaceDidActivate),
                                                           name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        keyboardHotKey.pressed = { [weak self] in self?.keyboardShortcutPressed() }
+        keyboardHotKey.released = { [weak self] in self?.keyboardShortcutReleased() }
+        shortcutSubscription = preferences.$keyboardShortcut.combineLatest(preferences.$isRecordingKeyboardShortcut)
+            .sink { [weak self] _, _ in
+                // @Published emits before the new preference is stored.
+                DispatchQueue.main.async { self?.configureKeyboardShortcut() }
+            }
+        shortcutExceptionsSubscription = exceptions.$apps.sink { [weak self] _ in
+            DispatchQueue.main.async { self?.configureKeyboardShortcut() }
+        }
         DispatchQueue.main.async { [weak self] in self?.restoreGestureIfNeeded() }
     }
 
@@ -109,6 +126,14 @@ final class GestureController: ObservableObject {
             }
             return
         }
+        guard installInputCapture() else { return }
+        isEnabled = true
+        needsPermission = false
+        status = L10n.text("Gesto ativo. As preferências são aplicadas a cada novo gesto.")
+    }
+
+    private func installInputCapture() -> Bool {
+        if tap != nil { return true }
         let events: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged,
                                      .  rightMouseDown, .rightMouseUp, .rightMouseDragged,
                                      .otherMouseDown, .otherMouseUp, .otherMouseDragged, .keyDown]
@@ -117,7 +142,9 @@ final class GestureController: ObservableObject {
             guard let context else { return Unmanaged.passUnretained(event) }
             // The source is attached exclusively to the main run loop.
             return MainActor.assumeIsolated {
-                Unmanaged<GestureController>.fromOpaque(context).takeUnretainedValue().handle(type, event: event)
+                let owner = Unmanaged<GestureController>.fromOpaque(context).takeUnretainedValue()
+                guard owner.isEnabled || owner.keyboardWheelIsOpen else { return Unmanaged.passUnretained(event) }
+                return owner.handle(type, event: event)
             }
         }
         guard let eventTap = CGEvent.tapCreate(
@@ -127,20 +154,18 @@ final class GestureController: ObservableObject {
         ) else {
             needsPermission = !AXIsProcessTrusted()
             status = L10n.text("Não foi possível capturar o mouse. Confira Acessibilidade e tente ativar novamente.")
-            return
+            return false
         }
         guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0) else {
             CFMachPortInvalidate(eventTap)
             status = L10n.text("Não foi possível iniciar a captura. Tente ativar novamente.")
-            return
+            return false
         }
         tap = eventTap
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: eventTap, enable: true)
-        isEnabled = true
-        needsPermission = false
-        status = L10n.text("Gesto ativo. As preferências são aplicadas a cada novo gesto.")
+        return true
     }
 
     func stop() {
@@ -160,6 +185,7 @@ final class GestureController: ObservableObject {
         consumeUntilUp = false
         bypassTriggerButton = false
         activePressButton = nil
+        keyboardWheelIsOpen = false
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
         tap = nil
@@ -209,7 +235,7 @@ final class GestureController: ObservableObject {
     }
 
     func preview() {
-        guard pendingDown == nil, !consumeUntilUp else { return }
+        guard pendingDown == nil, !consumeUntilUp, !keyboardWheelIsOpen else { return }
         show(at: NSEvent.mouseLocation)
         previewTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.dismiss() }
@@ -224,6 +250,17 @@ final class GestureController: ObservableObject {
             return unchanged
         }
         guard event.getIntegerValueField(.eventSourceUserData) != replayMarker else { return unchanged }
+
+        if keyboardWheelIsOpen {
+            if type == .keyDown, event.getIntegerValueField(.keyboardEventKeycode) == 53 {
+                cancelForEnvironmentChange()
+                return nil
+            }
+            if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(type) {
+                cancelForEnvironmentChange()
+            }
+            return unchanged
+        }
 
         // Freeze the button for a complete press, including an excluded app or
         // an early drag. A preference change must never split a down/up pair.
@@ -290,31 +327,8 @@ final class GestureController: ObservableObject {
             }
             if consumeUntilUp {
                 if wheelIsOpen { updateSelection(at: appKitPoint(event.location)) }
-                let shouldOpenMainWindow = wheelIsOpen && selection.isOpenMainWindowHovered
-                let closeTarget = wheelIsOpen && selection.isCloseHovered
-                    ? model.apps.first { $0.id == selection.closeTargetID } : nil
-                let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
-                dismiss()
+                completeSelection()
                 consumeUntilUp = false
-                if shouldOpenMainWindow {
-                    DispatchQueue.main.async { [weak self] in self?.openMainWindow() }
-                } else if let closeTarget {
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        let error = self.model.requestQuit(closeTarget)
-                        self.status = error ?? L10n.text("Encerramento solicitado para %@.", closeTarget.name)
-                    }
-                } else if let chosen {
-                    // Consume the release and start the exit before activating
-                    // the selected app; activation does not wait for the fade.
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        self.model.activate(chosen) { [weak self] error in
-                            guard let self, self.isEnabled else { return }
-                            self.status = error ?? L10n.text("Gesto ativo · última seleção: %@.", chosen.name)
-                        }
-                    }
-                }
                 return nil
             }
             return unchanged
@@ -343,6 +357,82 @@ final class GestureController: ObservableObject {
         default:
             return unchanged
         }
+    }
+
+    private func completeSelection() {
+        let shouldOpenMainWindow = wheelIsOpen && selection.isOpenMainWindowHovered
+        let closeTarget = wheelIsOpen && selection.isCloseHovered
+            ? model.apps.first { $0.id == selection.closeTargetID } : nil
+        let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
+        dismiss()
+        if shouldOpenMainWindow {
+            DispatchQueue.main.async { [weak self] in self?.openMainWindow() }
+        } else if let closeTarget {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let error = self.model.requestQuit(closeTarget)
+                self.status = error ?? L10n.text("Encerramento solicitado para %@.", closeTarget.name)
+            }
+        } else if let chosen {
+            // Consume the release and start the exit before activating
+            // the selected app; activation does not wait for the fade.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.model.activate(chosen) { [weak self] error in
+                    guard let self else { return }
+                    self.status = error ?? L10n.text("Gesto ativo · última seleção: %@.", chosen.name)
+                }
+            }
+        }
+    }
+
+    private func configureKeyboardShortcut() {
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
+        let suspended = preferences.isRecordingKeyboardShortcut
+            || exceptions.contains(bundleIdentifier: frontmostBundleIdentifier())
+        let shortcut = suspended ? nil : preferences.keyboardShortcut
+        guard shortcut != registeredKeyboardShortcut || preferences.keyboardShortcutError != nil else { return }
+        if keyboardWheelIsOpen { cancelForEnvironmentChange() }
+        keyboardShortcutIsHeld = false
+        let error = keyboardHotKey.configure(shortcut)
+        registeredKeyboardShortcut = error == nil ? shortcut : nil
+        preferences.keyboardShortcutError = error
+    }
+
+    private func keyboardShortcutPressed() {
+        guard !keyboardShortcutIsHeld else { return }
+        keyboardShortcutIsHeld = true
+        guard !preferences.isRecordingKeyboardShortcut, preferences.keyboardShortcut != nil,
+              !keyboardWheelIsOpen, pendingDown == nil, !consumeUntilUp,
+              !exceptions.contains(bundleIdentifier: frontmostBundleIdentifier()) else { return }
+        guard AXIsProcessTrusted() else {
+            needsPermission = true
+            status = L10n.text("Conceda Acessibilidade para usar a roda pelo teclado.")
+            openMainWindow()
+            return
+        }
+        guard installInputCapture() else { return }
+        needsPermission = false
+        keyboardWheelIsOpen = true
+        show(at: NSEvent.mouseLocation)
+    }
+
+    private func keyboardShortcutReleased() {
+        keyboardShortcutIsHeld = false
+        guard keyboardWheelIsOpen else { return }
+        // Preserve the last pointer selection; opening itself never selects.
+        updateSelection(at: NSEvent.mouseLocation)
+        keyboardWheelIsOpen = false
+        completeSelection()
+        releaseInputCaptureIfUnused()
+    }
+
+    private func releaseInputCaptureIfUnused() {
+        guard !isEnabled, !keyboardWheelIsOpen else { return }
+        if let tap { CFMachPortInvalidate(tap) }
+        if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
+        tap = nil
+        runLoopSource = nil
     }
 
     private func replay(_ event: CGEvent) {
@@ -491,10 +581,21 @@ final class GestureController: ObservableObject {
         cancelHold()
         consumeUntilUp = consumeUntilUp || pendingDown != nil
         pendingDown = nil
+        keyboardWheelIsOpen = false
         dismiss(animated: false)
+        releaseInputCaptureIfUnused()
     }
 
-    @objc private func willTerminate() { shutDown() }
+    @objc private func workspaceDidActivate() {
+        cancelForEnvironmentChange()
+        // Do not reserve the combination while an excluded app has focus.
+        configureKeyboardShortcut()
+    }
+
+    @objc private func willTerminate() {
+        _ = keyboardHotKey.configure(nil)
+        shutDown()
+    }
 
     @objc private func mainWindowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window === mainWindow else { return }
@@ -507,7 +608,7 @@ final class GestureController: ObservableObject {
     private func enableMovementTracking() {
         // Held-button motion is already delivered as drag events. Unpressed
         // movement is only useful while the floating preview is visible.
-        guard isEnabled else { return }
+        guard isEnabled || keyboardWheelIsOpen else { return }
         if let movementTap {
             CGEvent.tapEnable(tap: movementTap, enable: true)
             return

@@ -47,6 +47,17 @@ final class WheelPreferences: ObservableObject {
     @Published var showsHoldPreview: Bool {
         didSet { defaults.set(showsHoldPreview, forKey: "wheelShowsHoldPreview") }
     }
+    @Published var keyboardShortcut: WheelKeyboardShortcut? {
+        didSet {
+            if let keyboardShortcut, let data = try? JSONEncoder().encode(keyboardShortcut) {
+                defaults.set(data, forKey: "wheelKeyboardShortcut")
+            } else {
+                defaults.removeObject(forKey: "wheelKeyboardShortcut")
+            }
+        }
+    }
+    @Published var isRecordingKeyboardShortcut = false
+    @Published var keyboardShortcutError: String?
 
     @Published var language: AppLanguage {
         didSet {
@@ -61,6 +72,9 @@ final class WheelPreferences: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        keyboardShortcut = defaults.data(forKey: "wheelKeyboardShortcut")
+            .flatMap { try? JSONDecoder().decode(WheelKeyboardShortcut.self, from: $0) }
+            .flatMap { $0.isValid ? $0 : nil }
         showsHoldPreview = defaults.bool(forKey: "wheelShowsHoldPreview")
         language = defaults.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .system
         wheelDiameter = Self.validDiameter((defaults.object(forKey: "wheelDiameter") as? Double) ?? Self.defaultDiameter)
@@ -76,6 +90,7 @@ final class WheelPreferences: ObservableObject {
         holdDelay = Self.defaultDelay
         triggerButton = .right
         showsHoldPreview = false
+        keyboardShortcut = nil
         language = .system
     }
     private static func validDiameter(_ value: Double) -> Double {
@@ -189,6 +204,9 @@ struct WheelPreferencesView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Text(L10n.text("Cliques rápidos e arrastos continuam sendo encaminhados ao aplicativo. As alterações valem para o próximo gesto."))
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section(L10n.text("Teclado")) {
+                KeyboardShortcutSettings(preferences: preferences)
             }
             HStack {
                 Text(L10n.text("As preferências são salvas automaticamente."))

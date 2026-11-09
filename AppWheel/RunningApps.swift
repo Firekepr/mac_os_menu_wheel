@@ -35,6 +35,8 @@ final class RunningApps: ObservableObject {
     private var pages: [[WheelSlot]] = []
     private var capacity: WheelCapacity
     private(set) var pageIndex = 0
+    private(set) var pageTurnDirection = 1
+    private(set) var pageTurnRevision = 0
     var pageCount: Int { pages.count }
     private let favorites: AppFavorites
     private var favoritesSubscription: AnyCancellable?
@@ -101,6 +103,8 @@ final class RunningApps: ObservableObject {
     func movePage(by step: Int) -> Bool {
         let next = pageIndex + step
         guard pages.indices.contains(next), next != pageIndex else { return false }
+        pageTurnDirection = step > 0 ? 1 : -1
+        pageTurnRevision += 1
         pageIndex = next
         slots = pages[next]
         return true

@@ -156,13 +156,19 @@ struct WheelView: View {
         return isLoadingMemory ? L10n.text("RAM: consultando…") : L10n.text("RAM indisponível")
     }
 
-    var body: some View {
-        ZStack {
-            WheelBackdrop(shape: Circle(), theme: theme)
-            if theme.isAero {
-                AeroBubbles()
-            }
+    private var pageTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .modifier(
+                active: WheelPageEntrance(angle: .degrees(Double(model.pageTurnDirection) * 12), opacity: 0),
+                identity: WheelPageEntrance(angle: .zero, opacity: 1)
+            ),
+            removal: .opacity
+        )
+    }
 
+    private var pageSectors: some View {
+        ZStack {
             ForEach(model.slots) { slot in
                 let index = slot.id
                 let app = slot.app
@@ -233,6 +239,23 @@ struct WheelView: View {
                         .offset(x: cos(angle) * 135, y: sin(angle) * 135)
                 }
             }
+        }
+        .frame(width: WheelGeometry.size, height: WheelGeometry.size)
+    }
+
+    var body: some View {
+        ZStack {
+            WheelBackdrop(shape: Circle(), theme: theme)
+            if theme.isAero {
+                AeroBubbles()
+            }
+
+            ZStack {
+                pageSectors
+                    .id(model.pageIndex)
+                    .transition(pageTransition)
+            }
+            .animation(.easeInOut(duration: reduceMotion ? 0.12 : 0.20), value: model.pageTurnRevision)
 
             VStack(spacing: 6) {
                 Image(systemName: selected == nil ? "cursorarrow.rays" : "arrow.up.forward.app")
@@ -366,6 +389,15 @@ struct RunningAppIndicator: View {
             .fill(.primary.opacity(0.8))
             .frame(width: 4, height: 4)
             .accessibilityHidden(true)
+    }
+}
+
+private struct WheelPageEntrance: ViewModifier {
+    var angle: Angle
+    var opacity: Double
+
+    func body(content: Content) -> some View {
+        content.rotationEffect(angle).opacity(opacity)
     }
 }
 

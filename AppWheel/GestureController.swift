@@ -205,6 +205,9 @@ final class GestureController: ObservableObject {
 
     @objc func openMainWindow() {
         cancelForEnvironmentChange()
+        // Become a regular app only for the main window, making it available
+        // in the Dock and Command-Tab even after another app gains focus.
+        NSApplication.shared.setActivationPolicy(.regular)
         if mainWindow == nil {
             let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 640, height: 800),
                                   styleMask: [.titled, .closable, .miniaturizable],
@@ -219,10 +222,11 @@ final class GestureController: ObservableObject {
                 ContentView(preferences: preferences, favorites: favorites).environmentObject(self))
             mainWindowHasContent = true
         }
+        if mainWindow?.isMiniaturized == true { mainWindow?.deminiaturize(nil) }
         NSApplication.shared.activate()
         mainWindow?.makeKeyAndOrderFront(nil)
-        // Explicit user requests must also bring an accessory app forward when
-        // the gesture started in another application.
+        // Explicit user requests must bring the app forward even when the
+        // gesture started in another application.
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         configuration.createsNewApplicationInstance = false
@@ -603,6 +607,7 @@ final class GestureController: ObservableObject {
         // its subscriptions, or its memory-sampling task after closing.
         window.contentView = nil
         mainWindowHasContent = false
+        NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     private func enableMovementTracking() {

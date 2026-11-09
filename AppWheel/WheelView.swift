@@ -129,6 +129,21 @@ struct WheelView: View {
     @State private var memory: AppMemoryUsage?
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
+    @State private var playingPIDs: Set<pid_t> = []
+
+    private var playbackPIDs: [pid_t] {
+        guard isActive else { return [] }
+        return model.apps.compactMap { app in
+            guard !app.scriptActions.isEmpty, model.isRunning(app),
+                  let application = app.application, !application.isTerminated else { return nil }
+            return application.processIdentifier
+        }
+    }
+
+    private func isPlaying(_ app: WheelApp) -> Bool {
+        guard isActive, model.isRunning(app), let pid = app.application?.processIdentifier else { return false }
+        return playingPIDs.contains(pid)
+    }
 
     private var pageLabel: String? {
         guard model.pageCount > 1 else { return nil }
@@ -225,6 +240,17 @@ struct WheelView: View {
                                     .foregroundStyle(.white)
                                     .padding(4)
                                     .background(Color.accentColor, in: Circle())
+                            }
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            if isPlaying(app) {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 17, height: 17)
+                                    .background(Color(red: 0.08, green: 0.43, blue: 0.28), in: Circle())
+                                    .overlay { Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1) }
+                                    .help(L10n.text("Reproduzindo mídia"))
                             }
                         }
                         .modifier(SelectedIconFloat(isSelected: active && isActive))
@@ -340,7 +366,23 @@ struct WheelView: View {
         .accessibilityLabel(L10n.text("Roda de aplicativos"))
         .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"),
                              selected.map { L10n.text(model.isRunning($0) ? "Em execução" : "Fechado") },
+                             selected.flatMap { isPlaying($0) ? L10n.text("Reproduzindo mídia") : nil },
                              memoryLabel, pageLabel].compactMap { $0 }.joined(separator: ", "))
+        .task(id: playbackPIDs) {
+            let pids = playbackPIDs
+            playingPIDs.formIntersection(pids)
+            guard !pids.isEmpty else { return }
+            while !Task.isCancelled {
+                for pid in pids {
+                    let playing = await AppScriptActions.isPlaying(pid: pid)
+                    guard !Task.isCancelled else { return }
+                    if playing { playingPIDs.insert(pid) }
+                    else { playingPIDs.remove(pid) }
+                }
+                do { try await Task.sleep(for: .seconds(1)) }
+                catch { return }
+            }
+        }
         .task(id: selectedPID) {
             memory = nil
             memoryPID = selectedPID

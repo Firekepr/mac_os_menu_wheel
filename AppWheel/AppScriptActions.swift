@@ -10,6 +10,7 @@ struct AppScriptAction: Equatable, Sendable {
 
 enum AppScriptActions {
     private static let eventQueue = DispatchQueue(label: "AppWheel.AppleEvents", qos: .userInitiated)
+    private static let playbackQueue = DispatchQueue(label: "AppWheel.PlaybackState", qos: .utility)
 
     private static let playbackControls = [
         Control(command: "previous track", title: "Faixa anterior", symbol: "backward.end.fill"),
@@ -68,13 +69,45 @@ enum AppScriptActions {
         }
     }
 
+    static func isPlaying(pid: pid_t) async -> Bool {
+        await withCheckedContinuation { continuation in
+            playbackQueue.async {
+                continuation.resume(returning: readPlaybackState(pid: pid))
+            }
+        }
+    }
+
+    private static func readPlaybackState(pid: pid_t) -> Bool {
+        let property = NSAppleEventDescriptor.record()
+        property.setDescriptor(NSAppleEventDescriptor(typeCode: DescType(typeProperty)), forKeyword: AEKeyword(keyAEDesiredClass))
+        property.setDescriptor(NSAppleEventDescriptor(enumCode: OSType(formPropertyID)), forKeyword: AEKeyword(keyAEKeyForm))
+        property.setDescriptor(NSAppleEventDescriptor(typeCode: 0x70506C53), forKeyword: AEKeyword(keyAEKeyData)) // pPlS
+        property.setDescriptor(NSAppleEventDescriptor.null(), forKeyword: AEKeyword(keyAEContainer))
+        guard let specifier = property.coerce(toDescriptorType: DescType(typeObjectSpecifier)) else { return false }
+
+        let event = makeEvent(eventClass: AEEventClass(kAECoreSuite), eventID: AEEventID(kAEGetData), pid: pid)
+        event.setParam(specifier, forKeyword: AEKeyword(keyDirectObject))
+        // The first explicit control action can request Automation permission.
+        // Polling must stay silent when permission has not been granted.
+        let target = NSAppleEventDescriptor(processIdentifier: pid)
+        guard let address = target.aeDesc,
+              AEDeterminePermissionToAutomateTarget(address, event.eventClass, event.eventID, false) == noErr,
+              let reply = try? event.sendEvent(options: [.waitForReply, .neverInteract], timeout: 0.5),
+              (reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber))?.int32Value ?? 0) == 0 else { return false }
+        return reply.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.enumCodeValue == 0x6B505350 // kPSP
+    }
+
     // Send the same Apple event that the dictionary maps the AppleScript verb to.
     // Target the running process so an action cannot reopen a closed app.
-    private static func sendEvent(_ action: AppScriptAction, to pid: pid_t) throws {
-        let event = NSAppleEventDescriptor(eventClass: action.eventClass, eventID: action.eventID,
+    private static func makeEvent(eventClass: AEEventClass, eventID: AEEventID, pid: pid_t) -> NSAppleEventDescriptor {
+        NSAppleEventDescriptor(eventClass: eventClass, eventID: eventID,
                                           targetDescriptor: NSAppleEventDescriptor(processIdentifier: pid),
                                           returnID: AEReturnID(kAutoGenerateReturnID),
                                           transactionID: AETransactionID(kAnyTransactionID))
+    }
+
+    private static func sendEvent(_ action: AppScriptAction, to pid: pid_t) throws {
+        let event = makeEvent(eventClass: action.eventClass, eventID: action.eventID, pid: pid)
         let reply = try event.sendEvent(options: [.waitForReply, .canInteract], timeout: 10)
         if let code = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber))?.int32Value, code != 0 {
             let description = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorString))?.stringValue

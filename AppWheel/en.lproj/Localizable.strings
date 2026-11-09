@@ -156,3 +156,4 @@
 "Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação." = "Allow AppWheel to control %@ in Privacy & Security → Automation.";
 "Não foi possível executar %@ em %@: %@." = "Could not run %@ in %@: %@.";
 "%@ executado em %@." = "%@ ran in %@.";
+"Reproduzindo mídia" = "Playing media";

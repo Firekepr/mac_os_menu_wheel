@@ -250,9 +250,10 @@ struct WheelView: View {
                                     .frame(width: 17, height: 17)
                                     .background(Color(red: 0.08, green: 0.43, blue: 0.28), in: Circle())
                                     .overlay { Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1) }
-                                    .help(L10n.text("Reproduzindo mídia"))
                             }
                         }
+                        // Render the icon and its corner badges together before moving them.
+                        .drawingGroup()
                         .modifier(SelectedIconFloat(isSelected: active && isActive))
                         .overlay(alignment: .bottom) {
                             if app.favorite != nil && model.isRunning(app) {
@@ -370,12 +371,14 @@ struct WheelView: View {
                              memoryLabel, pageLabel].compactMap { $0 }.joined(separator: ", "))
         .task(id: playbackPIDs) {
             let pids = playbackPIDs
-            playingPIDs.formIntersection(pids)
+            let visiblePlayingPIDs = playingPIDs.intersection(pids)
+            if visiblePlayingPIDs != playingPIDs { playingPIDs = visiblePlayingPIDs }
             guard !pids.isEmpty else { return }
             while !Task.isCancelled {
                 for pid in pids {
                     let playing = await AppScriptActions.isPlaying(pid: pid)
                     guard !Task.isCancelled else { return }
+                    guard playing != playingPIDs.contains(pid) else { continue }
                     if playing { playingPIDs.insert(pid) }
                     else { playingPIDs.remove(pid) }
                 }

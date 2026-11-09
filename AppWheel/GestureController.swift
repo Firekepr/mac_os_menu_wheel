@@ -495,8 +495,8 @@ final class GestureController: ObservableObject {
 
     private func updateSelection(at point: CGPoint) {
         guard let panel else { return }
-        // Clamping at a display edge can move the wheel's center away from the press.
-        // Releasing without moving must still cancel rather than select an app.
+        // Releasing without deliberate movement cancels rather than selecting
+        // an app, including when the gesture begins at a display edge.
         if hypot(point.x - selectionOrigin.x, point.y - selectionOrigin.y) > 12 {
             didMoveForSelection = true
         }

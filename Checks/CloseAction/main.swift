@@ -148,7 +148,7 @@ MainActor.assumeIsolated {
     for diameter in [260.0, 380.0, 520.0] {
         for point in [screen.origin, CGPoint(x: -1, y: 699), CGPoint(x: -700, y: 250)] {
             let panel = WheelActionGeometry.panelFrame(around: point, diameter: diameter, visibleFrame: screen)
-            precondition(screen.contains(panel))
+            precondition(panel.midX == point.x && panel.midY == point.y)
             precondition(panel.height == WheelActionGeometry.outerSize(diameter: diameter))
         }
         let center = WheelActionGeometry.outerSize(diameter: diameter) / 2

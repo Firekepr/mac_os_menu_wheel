@@ -31,8 +31,8 @@ enum WheelGeometry {
 
     static func panelFrame(around point: CGPoint, visibleFrame: CGRect, diameter: CGFloat = size) -> CGRect {
         let size = min(max(diameter, 1), visibleFrame.width, visibleFrame.height)
-        let x = min(max(point.x - size / 2, visibleFrame.minX), max(visibleFrame.minX, visibleFrame.maxX - size))
-        let y = min(max(point.y - size / 2, visibleFrame.minY), max(visibleFrame.minY, visibleFrame.maxY - size))
-        return CGRect(x: x, y: y, width: size, height: size)
+        // Keep the gesture's origin at the exact center, including at screen
+        // edges. Parts of the panel may extend beyond the current display.
+        return CGRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size)
     }
 }

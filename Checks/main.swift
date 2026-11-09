@@ -27,9 +27,11 @@ for count in 1...8 {
     }
 }
 let leftScreen = CGRect(x: -1920, y: -200, width: 1920, height: 1080)
-for point in [CGPoint(x: -1920, y: -200), CGPoint(x: -1, y: 879), CGPoint(x: -900, y: 300)] {
+for point in [CGPoint(x: -1920, y: -200), CGPoint(x: -1, y: -200), CGPoint(x: -1920, y: 879), CGPoint(x: -1, y: 879), CGPoint(x: -900, y: 300)] {
     let frame = WheelGeometry.panelFrame(around: point, visibleFrame: leftScreen)
-    precondition(leftScreen.contains(frame), "Panel escaped display: \(frame)")
+    precondition(frame.midX == point.x && frame.midY == point.y, "Panel moved away from the pointer")
+    let localPointer = CGPoint(x: point.x - frame.minX, y: frame.maxY - point.y)
+    precondition(WheelGeometry.index(at: localPointer, count: 8, allowsBeyondEdge: true) == nil, "Pointer no longer starts in the cancellation center")
 }
 let centered = WheelGeometry.panelFrame(around: CGPoint(x: 500, y: 500), visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 900))
 precondition(centered.midX == 500 && centered.midY == 500)

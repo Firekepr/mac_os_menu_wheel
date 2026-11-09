@@ -174,9 +174,12 @@ MainActor.assumeIsolated {
         precondition(WheelGeometry.index(at: CGPoint(x: diameter * 0.9, y: center), count: 8,
                                         allowsBeyondEdge: true, diameter: diameter) == 2)
         let bounds = CGRect(x: -1440, y: -200, width: 1440, height: 900)
-        precondition(bounds.contains(WheelGeometry.panelFrame(around: bounds.origin, visibleFrame: bounds, diameter: diameter)))
+        let panel = WheelGeometry.panelFrame(around: bounds.origin, visibleFrame: bounds, diameter: diameter)
+        precondition(panel.midX == bounds.minX && panel.midY == bounds.minY)
     }
     let small = CGRect(x: 0, y: 0, width: 320, height: 300)
-    precondition(small.contains(WheelGeometry.panelFrame(around: .zero, visibleFrame: small, diameter: 520)))
+    let smallPanel = WheelGeometry.panelFrame(around: .zero, visibleFrame: small, diameter: 520)
+    precondition(smallPanel.midX == 0 && smallPanel.midY == 0)
+    precondition(smallPanel.width <= small.width && smallPanel.height <= small.height)
     print("Preferences checks passed: defaults, persistence, limits, five buttons, short clicks, drags, exclusions, Esc, resizing.")
 }

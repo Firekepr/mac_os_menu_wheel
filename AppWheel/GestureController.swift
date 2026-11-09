@@ -563,7 +563,7 @@ final class GestureController: ObservableObject {
         }
         guard didMoveForSelection else { selection.select(nil, canRevealClose: false); return }
         let local = CGPoint(x: point.x - panel.frame.minX, y: panel.frame.maxY - point.y)
-        selection.update(at: local, slots: model.slots, allowsBeyondEdge: true)
+        selection.update(at: local, slots: model.slots, allowsBeyondEdge: true, actionDelay: preferences.actionDelay)
     }
 
     private func dismiss(animated: Bool = true) {

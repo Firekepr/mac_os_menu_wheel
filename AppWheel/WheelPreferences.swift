@@ -30,6 +30,8 @@ enum WheelCapacity: Int, CaseIterable {
 final class WheelPreferences: ObservableObject {
     static let defaultDiameter = 380.0
     static let defaultDelay = 0.3
+    nonisolated static let defaultActionDelay = 0.65
+    static let actionDelayRange = 0.15...1.5
     private let defaults: UserDefaults
     @Published var theme: WheelTheme {
         didSet { defaults.set(theme.rawValue, forKey: "wheelTheme") }
@@ -51,6 +53,13 @@ final class WheelPreferences: ObservableObject {
             let value = Self.validDelay(holdDelay)
             if holdDelay != value { holdDelay = value }
             defaults.set(value, forKey: "wheelHoldDelay")
+        }
+    }
+    @Published var actionDelay: Double {
+        didSet {
+            let value = Self.validActionDelay(actionDelay)
+            if actionDelay != value { actionDelay = value }
+            defaults.set(value, forKey: "wheelActionDelay")
         }
     }
     @Published var triggerButton: MouseTriggerButton {
@@ -93,6 +102,7 @@ final class WheelPreferences: ObservableObject {
         language = defaults.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .system
         wheelDiameter = Self.validDiameter((defaults.object(forKey: "wheelDiameter") as? Double) ?? Self.defaultDiameter)
         holdDelay = Self.validDelay((defaults.object(forKey: "wheelHoldDelay") as? Double) ?? Self.defaultDelay)
+        actionDelay = Self.validActionDelay((defaults.object(forKey: "wheelActionDelay") as? Double) ?? Self.defaultActionDelay)
         triggerButton = (defaults.object(forKey: "wheelTriggerButton") as? Int)
             .flatMap(MouseTriggerButton.init(rawValue:)) ?? .right
     }
@@ -104,6 +114,7 @@ final class WheelPreferences: ObservableObject {
         theme = .glass
         wheelDiameter = Self.defaultDiameter
         holdDelay = Self.defaultDelay
+        actionDelay = Self.defaultActionDelay
         triggerButton = .right
         showsHoldPreview = false
         keyboardShortcut = nil
@@ -114,6 +125,10 @@ final class WheelPreferences: ObservableObject {
     }
     private static func validDelay(_ value: Double) -> Double {
         value.isFinite ? min(max(value, 0.15), 1.0) : defaultDelay
+    }
+    private static func validActionDelay(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultActionDelay }
+        return min(max(value, actionDelayRange.lowerBound), actionDelayRange.upperBound)
     }
 }
 
@@ -219,6 +234,13 @@ struct WheelPreferencesView: View {
                     LabeledContent(L10n.text("Tempo para abrir"), value: "\(Int((preferences.holdDelay * 1000).rounded())) ms")
                     Slider(value: $preferences.holdDelay, in: 0.15...1.0, step: 0.05) {
                         Text(L10n.text("Tempo para abrir"))
+                    }
+                    .labelsHidden()
+                }
+                VStack(spacing: 10) {
+                    LabeledContent(L10n.text("Tempo para revelar ações"), value: "\(Int((preferences.actionDelay * 1000).rounded())) ms")
+                    Slider(value: $preferences.actionDelay, in: WheelPreferences.actionDelayRange, step: 0.05) {
+                        Text(L10n.text("Tempo para revelar ações"))
                     }
                     .labelsHidden()
                 }

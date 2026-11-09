@@ -22,9 +22,9 @@ final class WheelInteraction: ObservableObject {
     private var dwellTimer: Timer?
     private let dwellDelay: TimeInterval
 
-    init(dwellDelay: TimeInterval = 0.65) { self.dwellDelay = dwellDelay }
+    init(dwellDelay: TimeInterval = WheelPreferences.defaultActionDelay) { self.dwellDelay = dwellDelay }
 
-    func select(_ id: String?, canRevealClose: Bool) {
+    func select(_ id: String?, canRevealClose: Bool, actionDelay: TimeInterval? = nil) {
         if hoveredScriptAction != nil { hoveredScriptAction = nil }
         if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
         if isCloseHovered { isCloseHovered = false }
@@ -37,7 +37,7 @@ final class WheelInteraction: ObservableObject {
         }
         guard canRevealClose, let id else { cancelDwell(); return }
         guard closeTargetID != id, dwellTimer == nil else { return }
-        dwellTimer = Timer.scheduledTimer(withTimeInterval: dwellDelay, repeats: false) { [weak self] _ in
+        dwellTimer = Timer.scheduledTimer(withTimeInterval: actionDelay ?? dwellDelay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.id == id else { return }
                 self.dwellTimer = nil
@@ -71,7 +71,7 @@ final class WheelInteraction: ObservableObject {
         dwellTimer = nil
     }
 
-    func update(at point: CGPoint, slots: [WheelSlot], allowsBeyondEdge: Bool) {
+    func update(at point: CGPoint, slots: [WheelSlot], allowsBeyondEdge: Bool, actionDelay: TimeInterval? = nil) {
         let inset = WheelActionGeometry.inset(diameter: diameter)
         let local = CGPoint(x: point.x - inset, y: point.y - inset)
         if WheelGeometry.isOpenMainWindowArea(at: local, diameter: diameter) {
@@ -108,7 +108,7 @@ final class WheelInteraction: ObservableObject {
             reset()
             return
         }
-        select(app?.id, canRevealClose: insideWheel && app?.canRequestQuit == true)
+        select(app?.id, canRevealClose: insideWheel && app?.canRequestQuit == true, actionDelay: actionDelay)
     }
 }
 

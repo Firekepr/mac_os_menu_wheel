@@ -98,6 +98,26 @@ final class AppFavorites: ObservableObject {
         set(position: position, bundleIdentifier: app.id, name: app.name, path: app.path, visibility: visibility)
     }
 
+    /// Commit a move/swap in one publication and one save. Both favorites keep
+    /// their own visibility, path and identity; no destination is overwritten.
+    @discardableResult
+    func move(id: String, to position: Int) -> Bool {
+        guard (0..<8).contains(position), let source = apps.first(where: { $0.id == id }),
+              source.position != position else { return false }
+        let destination = app(at: position)
+        var updated = apps.filter { $0.id != source.id && $0.position != position }
+        updated.append(FavoriteApp(id: source.id, name: source.name, path: source.path,
+                                   position: position, visibility: source.visibility))
+        if let destination {
+            updated.append(FavoriteApp(id: destination.id, name: destination.name, path: destination.path,
+                                       position: source.position, visibility: destination.visibility))
+        }
+        error = nil
+        apps = updated.sorted { $0.position < $1.position }
+        save()
+        return true
+    }
+
     func remove(at position: Int) {
         error = nil
         apps.removeAll { $0.position == position }
@@ -139,6 +159,14 @@ struct AppFavoritesView: View {
     @State private var runningApps: [NSRunningApplication] = []
     @State private var selectedPosition = 0
     @State private var hoveredPosition: Int?
+    @GestureState private var dragState: FavoriteDragState?
+    @State private var dragCancelled = false
+    @State private var escapeMonitor: Any?
+
+    private var dropTargetPosition: Int? {
+        guard !dragCancelled, let dragState else { return nil }
+        return FavoriteEditorGeometry.position(at: dragState.location)
+    }
 
     private var selectedApp: FavoriteApp? { favorites.app(at: selectedPosition) }
 
@@ -146,7 +174,7 @@ struct AppFavoritesView: View {
         VStack(spacing: 12) {
             VStack(spacing: 5) {
                 Text(L10n.text("Apps favoritos em posições fixas")).font(.title2.bold())
-                Text(L10n.text("Clique em uma posição da roda para configurar seu favorito."))
+                Text(L10n.text("Clique para configurar ou arraste um favorito para reorganizar."))
                     .font(.callout).foregroundStyle(.secondary)
             }
 
@@ -172,8 +200,23 @@ struct AppFavoritesView: View {
                 .allowsHitTesting(false)
             }
             .frame(width: 320, height: 320)
+            .coordinateSpace(name: "favoriteEditorWheel")
+            .overlay(alignment: .topLeading) {
+                if !dragCancelled, let dragState,
+                   let app = favorites.apps.first(where: { $0.id == dragState.id }) {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
+                        .resizable().frame(width: 44, height: 44)
+                        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+                        .position(dragState.location)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onChange(of: dragState?.id) { _, id in
+                if id == nil { finishDrag() }
+            }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selectedPosition)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hoveredPosition)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: dropTargetPosition)
 
             positionEditor
 
@@ -186,6 +229,10 @@ struct AppFavoritesView: View {
         }
         .padding(20)
         .onAppear { refreshRunningApps() }
+        .onDisappear { finishDrag() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            if dragState != nil { dragCancelled = true }
+        }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in
             refreshRunningApps()
         }
@@ -194,45 +241,39 @@ struct AppFavoritesView: View {
         }
     }
 
+    @ViewBuilder
     private func positionButton(_ position: Int) -> some View {
+        let button = basePositionButton(position)
+        if let app = favorites.app(at: position) {
+            button
+            .highPriorityGesture(dragGesture(for: app))
+            .accessibilityHint(L10n.text("Arraste para mover. Sobre outro favorito, as posições são trocadas."))
+            .accessibilityActions {
+                ForEach((0..<8).filter { $0 != position }, id: \.self) { destination in
+                    Button(L10n.text("Mover para %@", AppFavorites.directions[destination])) {
+                        if favorites.move(id: app.id, to: destination) { selectedPosition = destination }
+                    }
+                }
+            }
+        } else {
+            button
+        }
+    }
+
+    private func basePositionButton(_ position: Int) -> some View {
         let app = favorites.app(at: position)
         let isRunning = app.map { favorite in
             runningApps.contains { !$0.isTerminated && $0.bundleIdentifier == favorite.id }
         } ?? false
         let selected = selectedPosition == position
         let hovered = hoveredPosition == position
-        let sector = FavoriteEditorSector(position: position)
-        let angle = Double(position) * .pi / 4 - .pi / 2
+        let dropTarget = dropTargetPosition == position
         return Button {
             selectedPosition = position
         } label: {
-            ZStack {
-                sector.fill(Color.accentColor.opacity(selected ? 0.23 : hovered ? 0.10 : 0.015))
-                sector.stroke(selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.08), lineWidth: selected ? 1.5 : 1)
-                VStack(spacing: 3) {
-                    if let app {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
-                            .resizable().interpolation(.high)
-                            .frame(width: 36, height: 36)
-                            .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
-                    } else {
-                        Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(selected ? Color.accentColor : .secondary)
-                            .frame(width: 36, height: 36)
-                            .background(.primary.opacity(0.045), in: Circle())
-                    }
-                    Text(app?.name ?? L10n.text("Automático"))
-                        .font(.system(size: 10, weight: selected ? .semibold : .regular))
-                        .lineLimit(1).truncationMode(.tail)
-                        .frame(width: 80)
-                    RunningAppIndicator()
-                        .opacity(isRunning ? 1 : 0)
-                }
-                .offset(x: cos(angle) * 115, y: sin(angle) * 115)
-                .allowsHitTesting(false)
-            }
-            .contentShape(sector)
+            FavoritePositionLabel(position: position, app: app, isRunning: isRunning,
+                                  selected: selected, hovered: hovered, dropTarget: dropTarget,
+                                  isDragging: !dragCancelled && app != nil && dragState?.id == app?.id)
         }
         .buttonStyle(.plain)
         .onHover { inside in
@@ -244,6 +285,36 @@ struct AppFavoritesView: View {
         .accessibilityValue((app?.name ?? L10n.text("Automático"))
                             + (app == nil ? "" : ", " + L10n.text(isRunning ? "Em execução" : "Fechado")))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private func dragGesture(for app: FavoriteApp) -> some Gesture {
+        DragGesture(minimumDistance: 6, coordinateSpace: .named("favoriteEditorWheel"))
+            .updating($dragState) { value, state, _ in
+                state = FavoriteDragState(id: app.id, location: value.location)
+            }
+            .onChanged { _ in
+                monitorEscapeDuringDrag()
+            }
+            .onEnded { value in
+                guard !dragCancelled,
+                      let destination = FavoriteEditorGeometry.position(at: value.location) else { return }
+                if favorites.move(id: app.id, to: destination) { selectedPosition = destination }
+            }
+    }
+
+    private func monitorEscapeDuringDrag() {
+        guard escapeMonitor == nil else { return }
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.keyCode == 53 else { return event }
+            MainActor.assumeIsolated { dragCancelled = true }
+            return nil
+        }
+    }
+
+    private func finishDrag() {
+        if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
+        escapeMonitor = nil
+        dragCancelled = false
     }
 
     private var positionEditor: some View {
@@ -315,6 +386,69 @@ struct AppFavoritesView: View {
     }
 }
 
+private struct FavoritePositionLabel: View {
+    let position: Int
+    let app: FavoriteApp?
+    let isRunning: Bool
+    let selected: Bool
+    let hovered: Bool
+    let dropTarget: Bool
+    let isDragging: Bool
+
+    var body: some View {
+        let sector = FavoriteEditorSector(position: position)
+        let angle = Double(position) * .pi / 4 - .pi / 2
+            ZStack {
+                sector.fill(Color.accentColor.opacity(dropTarget ? 0.35 : selected ? 0.23 : hovered ? 0.10 : 0.015))
+                sector.stroke(dropTarget || selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.08),
+                              lineWidth: dropTarget ? 2.5 : selected ? 1.5 : 1)
+                VStack(spacing: 3) {
+                    if let app {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
+                            .resizable().interpolation(.high)
+                            .frame(width: 36, height: 36)
+                            .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
+                            .opacity(isDragging ? 0.25 : 1)
+                    } else {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(selected ? Color.accentColor : .secondary)
+                            .frame(width: 36, height: 36)
+                            .background(.primary.opacity(0.045), in: Circle())
+                    }
+                    Text(app?.name ?? L10n.text("Automático"))
+                        .font(.system(size: 10, weight: selected ? .semibold : .regular))
+                        .lineLimit(1).truncationMode(.tail)
+                        .frame(width: 80)
+                    RunningAppIndicator()
+                        .opacity(isRunning ? 1 : 0)
+                }
+                .offset(x: cos(angle) * 115, y: sin(angle) * 115)
+            }
+            .contentShape(sector)
+    }
+}
+
+private struct FavoriteDragState: Equatable {
+    let id: String
+    let location: CGPoint
+}
+
+enum FavoriteEditorGeometry {
+    static let diameter: CGFloat = 320
+    static let innerRadius: CGFloat = 58
+
+    static func position(at point: CGPoint) -> Int? {
+        let dx = point.x - diameter / 2
+        let dy = point.y - diameter / 2
+        let distance = hypot(dx, dy)
+        guard distance > innerRadius, distance <= diameter / 2 - 3 else { return nil }
+        let step = Double.pi / 4
+        let angle = (atan2(dy, dx) + .pi / 2 + step / 2 + 2 * .pi).truncatingRemainder(dividingBy: 2 * .pi)
+        return Int(angle / step) % 8
+    }
+}
+
 /// Eight fixed directions, matching the wheel's clockwise order from the top.
 private struct FavoriteEditorSector: Shape {
     let position: Int
@@ -325,7 +459,7 @@ private struct FavoriteEditorSector: Shape {
         var path = Path()
         path.addArc(center: center, radius: rect.width / 2 - 3,
                     startAngle: start, endAngle: end, clockwise: false)
-        path.addArc(center: center, radius: 58,
+        path.addArc(center: center, radius: FavoriteEditorGeometry.innerRadius,
                     startAngle: end, endAngle: start, clockwise: true)
         path.closeSubpath()
         return path

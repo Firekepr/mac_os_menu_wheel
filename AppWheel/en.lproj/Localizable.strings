@@ -133,3 +133,6 @@
 "Salvar atalho" = "Save shortcut";
 "Teclado" = "Keyboard";
 "Conceda Acessibilidade para usar a roda pelo teclado." = "Allow Accessibility access to use the wheel with the keyboard.";
+"Clique para configurar ou arraste um favorito para reorganizar." = "Click to configure or drag a favorite to rearrange.";
+"Arraste para mover. Sobre outro favorito, as posições são trocadas." = "Drag to move. Dropping on another favorite swaps their positions.";
+"Mover para %@" = "Move to %@";

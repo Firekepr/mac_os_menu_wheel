@@ -84,5 +84,43 @@ MainActor.assumeIsolated {
     favorites.setVisibility(.always, at: 6)
     conditionalModel.refresh()
     precondition(conditionalModel.slots[6].app?.id == "test.conditional")
+    let moveSuite = suite + ".drag"
+    let moveDefaults = UserDefaults(suiteName: moveSuite)!
+    defer { moveDefaults.removePersistentDomain(forName: moveSuite) }
+    let moves = AppFavorites(defaults: moveDefaults)
+    moves.set(position: 0, bundleIdentifier: "drag.first", name: "Primeiro", path: "/First.app", visibility: .always)
+    moves.set(position: 3, bundleIdentifier: "drag.second", name: "Segundo", path: "/Second.app", visibility: .whenRunning)
+    moves.set(position: 7, bundleIdentifier: "drag.third", name: "Terceiro", path: "/Third.app")
+    let frozen = RunningApps(favorites: moves, observesFavorites: false)
+    let beforeMove = frozen.slots.map { $0.app?.id }
+    precondition(moves.move(id: "drag.first", to: 2))
+    precondition(moves.app(at: 0) == nil && moves.app(at: 2)?.id == "drag.first")
+    precondition(frozen.slots.map { $0.app?.id } == beforeMove, "Dragging changed targets during an open gesture")
+    precondition(moves.move(id: "drag.first", to: 3))
+    precondition(moves.apps.count == 3 && Set(moves.apps.map(\.id)).count == 3)
+    precondition(moves.app(at: 3)?.id == "drag.first" && moves.app(at: 3)?.visibility == .always)
+    precondition(moves.app(at: 3)?.name == "Primeiro" && moves.app(at: 3)?.path == "/First.app")
+    precondition(moves.app(at: 2)?.id == "drag.second" && moves.app(at: 2)?.visibility == .whenRunning)
+    precondition(moves.app(at: 2)?.name == "Segundo" && moves.app(at: 2)?.path == "/Second.app")
+    precondition(moves.app(at: 7)?.id == "drag.third")
+    let restoredMove = AppFavorites(defaults: moveDefaults)
+    precondition(restoredMove.app(at: 3)?.id == "drag.first" && restoredMove.app(at: 2)?.id == "drag.second")
+    precondition(restoredMove.app(at: 2)?.visibility == .whenRunning)
+    let beforeInvalid = moves.apps.map { "\($0.id):\($0.position)" }
+    precondition(!moves.move(id: "drag.first", to: 3))
+    precondition(!moves.move(id: "missing", to: 1))
+    precondition(!moves.move(id: "drag.first", to: -1))
+    precondition(!moves.move(id: "drag.first", to: 8))
+    precondition(moves.apps.map { "\($0.id):\($0.position)" } == beforeInvalid)
+    for position in 0..<8 {
+        let angle = Double(position) * .pi / 4 - .pi / 2
+        let point = CGPoint(x: 160 + cos(angle) * 115, y: 160 + sin(angle) * 115)
+        precondition(FavoriteEditorGeometry.position(at: point) == position)
+    }
+    precondition(FavoriteEditorGeometry.position(at: CGPoint(x: 160, y: 160)) == nil)
+    precondition(FavoriteEditorGeometry.position(at: CGPoint(x: 160, y: 103)) == nil)
+    precondition(FavoriteEditorGeometry.position(at: CGPoint(x: 320, y: 160)) == nil)
+    precondition(FavoriteEditorGeometry.position(at: CGPoint(x: -10, y: 160)) == nil)
+    print("Drag checks passed: move, swap, metadata, visibility, persistence, no duplicates, frozen gesture, invalid targets, eight drop sectors.")
     print("Favorite checks passed: directions, closed apps, overflow, duplicates, persistence, moving, removal, frozen gesture, missing app, conditional visibility, migration.")
 }

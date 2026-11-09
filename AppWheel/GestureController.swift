@@ -467,7 +467,7 @@ final class GestureController: ObservableObject {
             window.hidesOnDeactivate = false
             window.ignoresMouseEvents = true
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-            window.contentView = NSHostingView(rootView: FloatingWheel(model: model, selection: selection))
+            window.contentView = NSHostingView(rootView: FloatingWheel(model: model, selection: selection, preferences: preferences))
             panel = window
         }
         selection.diameter = presentedDiameter
@@ -672,9 +672,10 @@ private struct FloatingWheel: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
     @ObservedObject var selection: WheelInteraction
+    @ObservedObject var preferences: WheelPreferences
 
     var body: some View {
-        WheelWithActions(model: model, interaction: selection, isActive: selection.isPresented)
+        WheelWithActions(model: model, interaction: selection, isActive: selection.isPresented, theme: preferences.theme)
             .preferredColorScheme(.dark)
             .scaleEffect(reduceMotion || selection.isPresented ? 1 : 0.90)
             .opacity(selection.isPresented ? 1 : 0)

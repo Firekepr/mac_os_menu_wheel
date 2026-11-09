@@ -55,6 +55,15 @@ MainActor.assumeIsolated {
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let preferences = WheelPreferences(defaults: defaults)
+    precondition(preferences.theme == .glass)
+    preferences.theme = .minimal
+    precondition(WheelPreferences(defaults: defaults).theme == .minimal)
+    preferences.theme = .highContrast
+    precondition(WheelPreferences(defaults: defaults).theme == .highContrast)
+    preferences.theme = .frutigerAero
+    precondition(WheelPreferences(defaults: defaults).theme == .frutigerAero)
+    preferences.theme = .frutigerAeroGlass
+    precondition(WheelPreferences(defaults: defaults).theme == .frutigerAeroGlass)
     precondition(!preferences.showsHoldPreview)
     preferences.showsHoldPreview = true
     precondition(WheelPreferences(defaults: defaults).showsHoldPreview)
@@ -83,6 +92,7 @@ MainActor.assumeIsolated {
     defaults.set(999, forKey: "wheelTriggerButton")
     precondition(WheelPreferences(defaults: defaults).triggerButton == .right)
     preferences.reset()
+    precondition(WheelPreferences(defaults: defaults).theme == .glass)
     precondition(!WheelPreferences(defaults: defaults).showsHoldPreview)
     precondition(WheelPreferences(defaults: defaults).triggerButton == .right)
 

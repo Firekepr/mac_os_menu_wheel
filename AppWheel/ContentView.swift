@@ -27,7 +27,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            WheelWithActions(model: model, interaction: interaction)
+            WheelWithActions(model: model, interaction: interaction, theme: preferences.theme)
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let point): select(at: point)

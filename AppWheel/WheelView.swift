@@ -1,11 +1,130 @@
 import SwiftUI
 
+enum WheelTheme: String, CaseIterable, Identifiable {
+    case glass, minimal, highContrast, frutigerAero, frutigerAeroGlass
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .glass: L10n.text("Glass")
+        case .minimal: L10n.text("Minimalista")
+        case .highContrast: L10n.text("Alto contraste")
+        case .frutigerAero: L10n.text("Frutiger Aero")
+        case .frutigerAeroGlass: L10n.text("Frutiger Aero · Liquid Glass")
+        }
+    }
+
+    var isAero: Bool { self == .frutigerAero || self == .frutigerAeroGlass }
+
+    var accent: Color {
+        switch self {
+        case .highContrast: .yellow
+        case .frutigerAero, .frutigerAeroGlass: Color(red: 0.76, green: 1, blue: 0.31)
+        default: .accentColor
+        }
+    }
+
+    var surface: Color {
+        switch self {
+        case .glass: .clear
+        case .minimal: Color(nsColor: .windowBackgroundColor)
+        case .highContrast: Color(white: 0.08)
+        case .frutigerAero, .frutigerAeroGlass: Color(red: 0.04, green: 0.39, blue: 0.63)
+        }
+    }
+
+    var sectorColors: [Color] {
+        switch self {
+        case .glass: [accent.opacity(0.05), accent.opacity(0.30)]
+        case .minimal: [accent.opacity(0.13), accent.opacity(0.13)]
+        case .highContrast: [accent.opacity(0.26), accent.opacity(0.42)]
+        case .frutigerAero, .frutigerAeroGlass: [accent.opacity(0.22), accent.opacity(0.66)]
+        }
+    }
+
+    var rimColors: [Color] {
+        switch self {
+        case .glass: [accent.opacity(0.70), .white.opacity(0.95), accent.opacity(0.70)]
+        case .frutigerAero, .frutigerAeroGlass: [.white, accent, Color(red: 0.32, green: 0.84, blue: 0.23)]
+        default: [accent, accent]
+        }
+    }
+}
+
+struct WheelBackdrop<Outline: Shape>: View {
+    let shape: Outline
+    let theme: WheelTheme
+
+    var body: some View {
+        switch theme {
+        case .glass:
+            shape.fill(.clear).glassEffect(.regular, in: shape)
+        case .frutigerAero, .frutigerAeroGlass:
+            ZStack {
+                if theme == .frutigerAeroGlass {
+                    shape.fill(.clear)
+                        .glassEffect(.regular.tint(theme.surface.opacity(0.35)), in: shape)
+                }
+                shape.fill(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color(red: 0.48, green: 0.92, blue: 1), location: 0),
+                            .init(color: Color(red: 0.13, green: 0.71, blue: 0.94), location: 0.46),
+                            .init(color: theme.surface, location: 0.72),
+                            .init(color: Color(red: 0.02, green: 0.23, blue: 0.43), location: 1)
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .opacity(theme == .frutigerAeroGlass ? 0.36 : 1)
+            }
+            .overlay {
+                shape.fill(RadialGradient(colors: [.white.opacity(0.65), .clear], center: .topLeading,
+                                          startRadius: 4, endRadius: 250))
+            }
+            .overlay {
+                shape.stroke(LinearGradient(colors: [.white.opacity(0.9), .cyan.opacity(0.4)],
+                                             startPoint: .top, endPoint: .bottom), lineWidth: 2)
+            }
+        case .minimal, .highContrast:
+            shape.fill(theme.surface)
+        }
+    }
+}
+
+private struct AeroBubbles: View {
+    private let bubbles: [(x: CGFloat, y: CGFloat, size: CGFloat)] = [
+        (65, 94, 28), (84, 68, 10), (307, 96, 22),
+        (327, 273, 35), (302, 298, 13), (76, 303, 20)
+    ]
+
+    var body: some View {
+        ZStack {
+            ForEach(bubbles.indices, id: \.self) { index in
+                let bubble = bubbles[index]
+                Circle()
+                    .fill(RadialGradient(colors: [.white.opacity(0.7), .cyan.opacity(0.12), .clear],
+                                         center: .topLeading, startRadius: 0, endRadius: bubble.size))
+                    .overlay { Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1) }
+                    .frame(width: bubble.size, height: bubble.size)
+                    .position(x: bubble.x, y: bubble.y)
+            }
+        }
+        .frame(width: WheelGeometry.size, height: WheelGeometry.size)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 struct WheelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
     let selectedID: String?
     var isOpenMainWindowHovered = false
     var isActive = true
+    var theme: WheelTheme = .glass
+    @Environment(\.colorScheme) private var colorScheme
     @State private var memory: AppMemoryUsage?
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
@@ -29,9 +148,10 @@ struct WheelView: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(.clear)
-                .glassEffect(.regular, in: Circle())
+            WheelBackdrop(shape: Circle(), theme: theme)
+            if theme.isAero {
+                AeroBubbles()
+            }
 
             ForEach(model.slots) { slot in
                 let index = slot.id
@@ -43,36 +163,37 @@ struct WheelView: View {
                 WheelSector(index: index, count: model.slots.count)
                     .fill(
                         RadialGradient(
-                            colors: [.accentColor.opacity(0.05), .accentColor.opacity(0.30)],
+                            colors: theme.sectorColors,
                             center: .center, startRadius: 75, endRadius: 190
                         )
                     )
                     .opacity(active ? 1 : 0)
 
                 WheelSector(index: index, count: model.slots.count)
-                    .stroke(.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(.primary.opacity(theme == .highContrast ? 0.40 : theme.isAero ? 0.24 : 0.08), lineWidth: 1)
 
                 WheelSector(index: index, count: model.slots.count)
-                    .stroke(.white.opacity(0.22), lineWidth: 1)
+                    .stroke(.white.opacity(theme == .minimal ? 0 : 0.22), lineWidth: 1)
                     .opacity(active ? 1 : 0)
 
                 WheelRim(index: index, count: model.slots.count)
                     .stroke(
                         LinearGradient(
-                            colors: [.accentColor.opacity(0.70), .white.opacity(0.95), .accentColor.opacity(0.70)],
+                            colors: theme.rimColors,
                             startPoint: .topLeading, endPoint: .bottomTrailing
                         ),
-                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                        style: StrokeStyle(lineWidth: theme == .highContrast ? 4 : theme == .minimal ? 1.5 : 2.5, lineCap: .round)
                     )
-                    .shadow(color: .accentColor.opacity(0.65), radius: 7)
+                    .shadow(color: theme == .glass ? .accentColor.opacity(0.65) : .clear, radius: 7)
                     .opacity(active ? 1 : 0)
 
-                Circle()
-                    .fill(Color.accentColor.opacity(0.22))
-                    .frame(width: 64, height: 64)
-                    .blur(radius: 12)
-                    .opacity(active ? 1 : 0)
-                    .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
+                if active && (theme == .glass || theme.isAero) {
+                    Circle()
+                        .fill(theme.accent.opacity(0.22))
+                        .frame(width: 64, height: 64)
+                        .blur(radius: 12)
+                        .offset(x: cos(angle) * iconRadius, y: sin(angle) * iconRadius)
+                }
 
                 if let app {
                     Image(nsImage: app.icon)
@@ -80,7 +201,7 @@ struct WheelView: View {
                         .interpolation(.high)
                         .frame(width: 52, height: 52)
                         .scaleEffect(active && !reduceMotion ? 1.16 : 1)
-                        .shadow(color: .black.opacity(active ? 0.24 : 0.15), radius: active ? 10 : 6, y: active ? 6 : 4)
+                        .shadow(color: theme == .minimal ? .clear : .black.opacity(active ? 0.24 : 0.15), radius: active ? 10 : 6, y: active ? 6 : 4)
                         .overlay(alignment: .bottomTrailing) {
                             if app.favorite != nil {
                                 Image(systemName: "star.fill")
@@ -106,7 +227,7 @@ struct WheelView: View {
             VStack(spacing: 6) {
                 Image(systemName: selected == nil ? "cursorarrow.rays" : "arrow.up.forward.app")
                     .font(.title2)
-                    .foregroundStyle(selected == nil ? Color.secondary : Color.accentColor)
+                    .foregroundStyle(selected == nil ? Color.secondary : theme.accent)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                 Text(selected?.name ?? L10n.text("Escolha um app"))
                     .font(.system(size: 13, weight: .medium))
@@ -117,7 +238,7 @@ struct WheelView: View {
                     Text(memoryLabel)
                         .font(.system(size: 11, weight: .medium))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme == .highContrast ? .primary : .secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .help(memory?.help ?? L10n.text("Consumo de memória do aplicativo selecionado."))
@@ -126,11 +247,29 @@ struct WheelView: View {
             .offset(y: selected == nil ? -16 : 0)
             .padding(8)
             .frame(width: WheelGeometry.centerDiameter, height: WheelGeometry.centerDiameter)
-            .background(.background.opacity(0.45), in: Circle())
+            .background {
+                switch theme {
+                case .glass:
+                    Circle().fill(.background.opacity(0.45))
+                case .frutigerAero:
+                    Circle()
+                        .fill(LinearGradient(colors: [theme.surface, Color(red: 0.02, green: 0.18, blue: 0.32)],
+                                             startPoint: .top, endPoint: .bottom))
+                        .overlay { Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1) }
+                case .frutigerAeroGlass:
+                    Circle().fill(Color(red: 0.02, green: 0.18, blue: 0.32).opacity(0.75))
+                        .glassEffect(.regular.tint(theme.surface.opacity(0.45)), in: Circle())
+                        .overlay { Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1) }
+                case .highContrast:
+                    Circle().fill(.black)
+                case .minimal:
+                    Circle().fill(Color(nsColor: .controlBackgroundColor))
+                }
+            }
             .overlay {
                 if selected == nil {
                     CenterOpenArea()
-                        .fill(Color.accentColor.opacity(isOpenMainWindowHovered ? 0.45 : 0.12))
+                        .fill(theme.accent.opacity(isOpenMainWindowHovered ? 0.45 : 0.12))
                         .overlay(alignment: .bottom) {
                             Label(L10n.text("Abrir"), systemImage: "macwindow")
                                 .font(.system(size: 10, weight: .semibold))
@@ -147,9 +286,10 @@ struct WheelView: View {
             }
             .overlay {
                 Circle()
-                    .stroke(Color.accentColor.opacity(selected == nil ? 0 : 0.30), lineWidth: 1)
+                    .stroke(theme.accent.opacity(selected == nil ? 0 : 0.30), lineWidth: 1)
             }
         }
+        .environment(\.colorScheme, theme == .highContrast || theme.isAero ? .dark : colorScheme)
         .frame(width: 380, height: 380)
         .contentShape(Circle())
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.24, bounce: 0.15), value: selectedID)

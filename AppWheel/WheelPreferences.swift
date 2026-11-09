@@ -27,6 +27,10 @@ final class WheelPreferences: ObservableObject {
     static let defaultDiameter = 380.0
     static let defaultDelay = 0.3
     private let defaults: UserDefaults
+    @Published var theme: WheelTheme {
+        didSet { defaults.set(theme.rawValue, forKey: "wheelTheme") }
+    }
+
     @Published var wheelDiameter: Double {
         didSet {
             let value = Self.validDiameter(wheelDiameter)
@@ -72,6 +76,7 @@ final class WheelPreferences: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        theme = defaults.string(forKey: "wheelTheme").flatMap(WheelTheme.init(rawValue:)) ?? .glass
         keyboardShortcut = defaults.data(forKey: "wheelKeyboardShortcut")
             .flatMap { try? JSONDecoder().decode(WheelKeyboardShortcut.self, from: $0) }
             .flatMap { $0.isValid ? $0 : nil }
@@ -86,6 +91,7 @@ final class WheelPreferences: ObservableObject {
         L10n.text("Segure o %@ por %@ ms, aponte e solte.", triggerButton.title.lowercased(), String(Int((holdDelay * 1000).rounded())))
     }
     func reset() {
+        theme = .glass
         wheelDiameter = Self.defaultDiameter
         holdDelay = Self.defaultDelay
         triggerButton = .right
@@ -178,6 +184,13 @@ struct WheelPreferencesView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section(L10n.text("Aparência")) {
+                Picker(L10n.text("Tema da roda"), selection: $preferences.theme) {
+                    ForEach(WheelTheme.allCases) { theme in
+                        Text(theme.title).tag(theme)
+                    }
+                }
+                WheelThemePreview(theme: preferences.theme)
+
                 VStack(spacing: 10) {
                     LabeledContent(L10n.text("Tamanho da roda"), value: "\(Int(preferences.wheelDiameter)) pt")
                     Slider(value: $preferences.wheelDiameter, in: 260...520, step: 10) {
@@ -247,5 +260,19 @@ struct WheelPreferencesView: View {
         } message: {
             Text(restartError ?? L10n.text("O AppWheel precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas."))
         }
+    }
+}
+
+private struct WheelThemePreview: View {
+    let theme: WheelTheme
+    @StateObject private var model = RunningApps()
+
+    var body: some View {
+        WheelView(model: model, selectedID: model.apps.first?.id, isActive: false, theme: theme)
+            .scaleEffect(0.46)
+            .frame(width: 180, height: 180)
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }

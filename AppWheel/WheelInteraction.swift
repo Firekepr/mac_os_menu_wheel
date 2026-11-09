@@ -143,6 +143,7 @@ struct WheelWithActions: View {
     @ObservedObject var model: RunningApps
     @ObservedObject var interaction: WheelInteraction
     var isActive = true
+    var theme: WheelTheme = .glass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var closeIndex: Int? {
         model.slots.firstIndex { slot in
@@ -156,7 +157,7 @@ struct WheelWithActions: View {
         let side = WheelActionGeometry.outerSize(diameter: diameter)
         ZStack {
             WheelView(model: model, selectedID: interaction.id, isOpenMainWindowHovered: interaction.isOpenMainWindowHovered,
-                      isActive: isActive)
+                      isActive: isActive, theme: theme)
                 .scaleEffect(diameter / WheelGeometry.size)
                 .frame(width: diameter, height: diameter)
 
@@ -165,16 +166,23 @@ struct WheelWithActions: View {
                 let radius = WheelActionGeometry.actionRadius(diameter: diameter)
                 let shape = CloseActionSector(diameter: diameter, index: index, count: model.slots.count)
                 ZStack {
-                    shape.fill(.clear)
-                        .glassEffect(.regular, in: shape)
-                    shape.fill(.red.opacity(interaction.isCloseHovered ? 0.40 : 0.08))
-                    shape.stroke(.red.opacity(interaction.isCloseHovered ? 0.9 : 0.35), lineWidth: 1)
-                        .shadow(color: .red.opacity(interaction.isCloseHovered ? 0.4 : 0), radius: 8)
+                    WheelBackdrop(shape: shape, theme: theme)
+                    if theme.isAero {
+                        shape.fill(Color(red: 0.45, green: 0.06, blue: 0.13)
+                            .opacity(theme == .frutigerAeroGlass
+                                     ? (interaction.isCloseHovered ? 0.82 : 0.68)
+                                     : (interaction.isCloseHovered ? 0.95 : 0.80)))
+                    } else {
+                        shape.fill(.red.opacity(interaction.isCloseHovered ? 0.40 : 0.08))
+                    }
+                    shape.stroke(.red.opacity(interaction.isCloseHovered ? 0.9 : 0.35), lineWidth: theme == .highContrast ? 2 : 1)
+                        .shadow(color: .red.opacity(theme == .glass && interaction.isCloseHovered ? 0.4 : 0), radius: 8)
                     VStack(spacing: 3) {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 18, weight: .semibold))
                         Text(L10n.text("Fechar")).font(.system(size: 11, weight: .semibold))
                     }
-                    .foregroundStyle(interaction.isCloseHovered ? Color.white : .red)
+                    .foregroundStyle(theme == .highContrast || theme.isAero || interaction.isCloseHovered
+                                     ? Color.white : .red)
                     .offset(x: cos(angle) * radius, y: sin(angle) * radius)
                 }
                 .frame(width: side, height: side)

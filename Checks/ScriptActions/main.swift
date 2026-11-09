@@ -52,5 +52,14 @@ MainActor.assumeIsolated {
         precondition(musicActions.map(\.eventID) == actions.map(\.eventID))
         precondition(musicActions.allSatisfy { $0.eventClass == 0x686F6F6B }) // 'hook'
     }
+    let xcodeDictionary = URL(fileURLWithPath: "/Applications/Xcode.app/Contents/Resources/Xcode.sdef")
+    if let installed = try? Data(contentsOf: xcodeDictionary) {
+        let xcodeActions = AppScriptActions.discover(in: installed, bundleIdentifier: "com.apple.dt.Xcode")
+        precondition(xcodeActions.map(\.eventID) == [0x62756C64, 0x6572756E, 0x74657374, 0x73746F70])
+        precondition(xcodeActions.allSatisfy { $0.eventClass == 0x78636F64 && $0.targetsActiveWorkspace })
+        precondition(AppScriptActions.applicationProperty(0x61776B73) != nil)
+        precondition(!AppScriptActions.supportsPlaybackState("com.apple.dt.Xcode"))
+        print("Xcode dictionary checks passed: build, run, test and stop target the active workspace.")
+    }
     print("Script actions checks passed: dictionary filtering, event codes and outer hit targets.")
 }

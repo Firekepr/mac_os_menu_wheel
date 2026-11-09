@@ -157,3 +157,7 @@
 "Não foi possível executar %@ em %@: %@." = "Could not run %@ in %@: %@.";
 "%@ executado em %@." = "%@ ran in %@.";
 "Reproduzindo mídia" = "Playing media";
+"Compilar" = "Build";
+"Executar" = "Run";
+"Testar" = "Test";
+"Parar" = "Stop";

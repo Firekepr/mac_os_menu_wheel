@@ -157,3 +157,7 @@
 "Não foi possível executar %@ em %@: %@." = "Não foi possível executar %@ em %@: %@.";
 "%@ executado em %@." = "%@ executado em %@.";
 "Reproduzindo mídia" = "Reproduzindo mídia";
+"Compilar" = "Compilar";
+"Executar" = "Executar";
+"Testar" = "Testar";
+"Parar" = "Parar";

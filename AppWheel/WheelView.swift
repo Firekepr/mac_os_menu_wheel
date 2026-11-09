@@ -135,7 +135,8 @@ struct WheelView: View {
         guard isActive else { return [] }
         return model.apps.compactMap { app in
             guard !app.scriptActions.isEmpty, model.isRunning(app),
-                  let application = app.application, !application.isTerminated else { return nil }
+                  let application = app.application, !application.isTerminated,
+                  AppScriptActions.supportsPlaybackState(application.bundleIdentifier) else { return nil }
             return application.processIdentifier
         }
     }

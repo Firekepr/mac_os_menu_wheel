@@ -124,10 +124,15 @@ struct WheelView: View {
     var isOpenMainWindowHovered = false
     var isActive = true
     var theme: WheelTheme = .glass
+    var isMainWindowOpen = false
     @Environment(\.colorScheme) private var colorScheme
     @State private var memory: AppMemoryUsage?
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
+
+    private var mainWindowActionTitle: String {
+        L10n.text(isMainWindowOpen ? "Fechar janela do AppWheel" : "Abrir AppWheel")
+    }
 
     private var selected: WheelApp? {
         model.apps.first { $0.id == selectedID }
@@ -269,9 +274,10 @@ struct WheelView: View {
             .overlay {
                 if selected == nil {
                     CenterOpenArea()
-                        .fill(theme.accent.opacity(isOpenMainWindowHovered ? 0.45 : 0.12))
+                        .fill((isMainWindowOpen ? Color.red : theme.accent).opacity(isOpenMainWindowHovered ? 0.45 : 0.12))
                         .overlay(alignment: .bottom) {
-                            Label(L10n.text("Abrir"), systemImage: "macwindow")
+                            Label(L10n.text(isMainWindowOpen ? "Fechar janela" : "Abrir"),
+                                  systemImage: isMainWindowOpen ? "xmark" : "macwindow")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(isOpenMainWindowHovered ? Color.white : Color.primary)
                                 .padding(.top, 6)
@@ -281,7 +287,7 @@ struct WheelView: View {
                         }
                         .clipShape(CenterOpenArea())
                         .overlay { CenterOpenArea().stroke(.primary.opacity(0.12), lineWidth: 1) }
-                        .help(L10n.text("Abrir AppWheel"))
+                        .help(mainWindowActionTitle)
                 }
             }
             .overlay {
@@ -332,8 +338,8 @@ struct WheelView: View {
                     Button(L10n.text("Fechar %@", app.name)) { model.requestQuit(app) }
                 }
             }
-            Button(L10n.text("Abrir AppWheel")) {
-                NotificationCenter.default.post(name: .appWheelOpenMainWindow, object: nil)
+            Button(mainWindowActionTitle) {
+                NotificationCenter.default.post(name: .appWheelToggleMainWindow, object: nil)
             }
         }
     }

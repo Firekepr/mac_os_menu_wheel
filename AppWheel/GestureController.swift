@@ -5,6 +5,7 @@ import Combine
 
 extension Notification.Name {
     static let appWheelOpenMainWindow = Notification.Name("AppWheel.openMainWindow")
+    static let appWheelToggleMainWindow = Notification.Name("AppWheel.toggleMainWindow")
 }
 
 private final class WheelPanel: NSPanel {
@@ -34,7 +35,6 @@ final class GestureController: ObservableObject {
     private let selection = WheelInteraction()
     private var panel: WheelPanel?
     private var mainWindow: NSWindow?
-    private var mainWindowHasContent = false
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var movementTap: CFMachPort?
@@ -83,6 +83,8 @@ final class GestureController: ObservableObject {
                                                name: NSApplication.willTerminateNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(openMainWindow),
                                                name: .appWheelOpenMainWindow, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(toggleMainWindow),
+                                               name: .appWheelToggleMainWindow, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(mainWindowWillClose),
                                                name: NSWindow.willCloseNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(restoreGestureIfNeeded),
@@ -217,14 +219,17 @@ final class GestureController: ObservableObject {
             window.center()
             mainWindow = window
         }
-        if !mainWindowHasContent {
-            mainWindow?.contentView = NSHostingView(rootView:
+        guard let window = mainWindow else { return }
+        if !selection.isMainWindowOpen {
+            window.contentView = NSHostingView(rootView:
                 ContentView(preferences: preferences, favorites: favorites).environmentObject(self))
-            mainWindowHasContent = true
+            selection.isMainWindowOpen = true
         }
-        if mainWindow?.isMiniaturized == true { mainWindow?.deminiaturize(nil) }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        NSApplication.shared.unhide(nil)
         NSApplication.shared.activate()
-        mainWindow?.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         // Explicit user requests must bring the app forward even when the
         // gesture started in another application.
         let configuration = NSWorkspace.OpenConfiguration()
@@ -232,9 +237,26 @@ final class GestureController: ObservableObject {
         configuration.createsNewApplicationInstance = false
         configuration.addsToRecentItems = false
         configuration.promptsUserIfNeeded = false
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
-            guard let error else { return }
-            Task { @MainActor in self?.status = L10n.text("Não foi possível trazer o AppWheel à frente: %@", error.localizedDescription) }
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self, weak window] _, error in
+            Task { @MainActor in
+                guard let self, let window, self.selection.isMainWindowOpen,
+                      window.isVisible, !window.isMiniaturized else { return }
+                if let error {
+                    self.status = L10n.text("Não foi possível trazer o AppWheel à frente: %@", error.localizedDescription)
+                } else {
+                    window.makeKeyAndOrderFront(nil)
+                    window.orderFrontRegardless()
+                }
+            }
+        }
+    }
+
+    @objc func toggleMainWindow() {
+        if selection.isMainWindowOpen {
+            cancelForEnvironmentChange()
+            mainWindow?.close()
+        } else {
+            openMainWindow()
         }
     }
 
@@ -364,13 +386,13 @@ final class GestureController: ObservableObject {
     }
 
     private func completeSelection() {
-        let shouldOpenMainWindow = wheelIsOpen && selection.isOpenMainWindowHovered
+        let shouldToggleMainWindow = wheelIsOpen && selection.isOpenMainWindowHovered
         let closeTarget = wheelIsOpen && selection.isCloseHovered
             ? model.apps.first { $0.id == selection.closeTargetID } : nil
         let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
         dismiss()
-        if shouldOpenMainWindow {
-            DispatchQueue.main.async { [weak self] in self?.openMainWindow() }
+        if shouldToggleMainWindow {
+            DispatchQueue.main.async { [weak self] in self?.toggleMainWindow() }
         } else if let closeTarget {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -606,7 +628,7 @@ final class GestureController: ObservableObject {
         // A retained NSWindow must not retain an invisible SwiftUI preview,
         // its subscriptions, or its memory-sampling task after closing.
         window.contentView = nil
-        mainWindowHasContent = false
+        selection.isMainWindowOpen = false
         NSApplication.shared.setActivationPolicy(.accessory)
     }
 
@@ -675,7 +697,8 @@ private struct FloatingWheel: View {
     @ObservedObject var preferences: WheelPreferences
 
     var body: some View {
-        WheelWithActions(model: model, interaction: selection, isActive: selection.isPresented, theme: preferences.theme)
+        WheelWithActions(model: model, interaction: selection, isActive: selection.isPresented,
+                         theme: preferences.theme, isMainWindowOpen: selection.isMainWindowOpen)
             .preferredColorScheme(.dark)
             .scaleEffect(reduceMotion || selection.isPresented ? 1 : 0.90)
             .opacity(selection.isPresented ? 1 : 0)

@@ -11,6 +11,7 @@ final class WheelInteraction: ObservableObject {
     @Published private(set) var closeTargetID: String?
     @Published private(set) var isCloseHovered = false
     @Published private(set) var isOpenMainWindowHovered = false
+    @Published var isMainWindowOpen = false
     @Published var isPresented = false
     @Published private var storedDiameter: CGFloat = WheelGeometry.size
     var diameter: CGFloat {
@@ -144,6 +145,7 @@ struct WheelWithActions: View {
     @ObservedObject var interaction: WheelInteraction
     var isActive = true
     var theme: WheelTheme = .glass
+    var isMainWindowOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var closeIndex: Int? {
         model.slots.firstIndex { slot in
@@ -157,7 +159,7 @@ struct WheelWithActions: View {
         let side = WheelActionGeometry.outerSize(diameter: diameter)
         ZStack {
             WheelView(model: model, selectedID: interaction.id, isOpenMainWindowHovered: interaction.isOpenMainWindowHovered,
-                      isActive: isActive, theme: theme)
+                      isActive: isActive, theme: theme, isMainWindowOpen: isMainWindowOpen)
                 .scaleEffect(diameter / WheelGeometry.size)
                 .frame(width: diameter, height: diameter)
 

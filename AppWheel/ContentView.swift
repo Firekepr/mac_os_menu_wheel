@@ -27,7 +27,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            WheelWithActions(model: model, interaction: interaction, theme: preferences.theme)
+            WheelWithActions(model: model, interaction: interaction, theme: preferences.theme, isMainWindowOpen: true)
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let point): select(at: point)
@@ -37,7 +37,7 @@ struct ContentView: View {
                 .onTapGesture { location in
                     select(at: location)
                     if interaction.isOpenMainWindowHovered {
-                        gesture.openMainWindow()
+                        gesture.toggleMainWindow()
                     } else if interaction.isCloseHovered,
                        let target = model.apps.first(where: { $0.id == interaction.closeTargetID }) {
                         model.requestQuit(target)

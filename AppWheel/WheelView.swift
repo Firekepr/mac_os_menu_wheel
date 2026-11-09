@@ -130,6 +130,11 @@ struct WheelView: View {
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
 
+    private var pageLabel: String? {
+        guard model.pageCount > 1 else { return nil }
+        return L10n.text("Página %@ de %@", String(model.pageIndex + 1), String(model.pageCount))
+    }
+
     private var mainWindowActionTitle: String {
         L10n.text(isMainWindowOpen ? "Fechar janela do AppWheel" : "Abrir AppWheel")
     }
@@ -239,6 +244,14 @@ struct WheelView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .contentTransition(.opacity)
+                if let pageLabel {
+                    Label(pageLabel, systemImage: "arrow.up.arrow.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .help(L10n.text("Role para trocar de página."))
+                }
                 if let memoryLabel {
                     Text(memoryLabel)
                         .font(.system(size: 11, weight: .medium))
@@ -304,7 +317,7 @@ struct WheelView: View {
         .accessibilityLabel(L10n.text("Roda de aplicativos"))
         .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"),
                              selected.map { L10n.text(model.isRunning($0) ? "Em execução" : "Fechado") },
-                             memoryLabel].compactMap { $0 }.joined(separator: ", "))
+                             memoryLabel, pageLabel].compactMap { $0 }.joined(separator: ", "))
         .task(id: selectedPID) {
             memory = nil
             memoryPID = selectedPID

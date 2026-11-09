@@ -44,6 +44,8 @@ final class GestureController: ObservableObject {
     private var holdPreviewGeneration = 0
     private(set) var holdPreviewTiming: HoldPreviewTiming?
     private var previewTimer: Timer?
+    private var pageScrollDelta = 0.0
+    private var lastPageScrollTime = -Double.infinity
     private var pendingDown: CGEvent?
     private var wheelIsOpen = false
     private var consumeUntilUp = false
@@ -138,7 +140,7 @@ final class GestureController: ObservableObject {
         if tap != nil { return true }
         let events: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged,
                                      .  rightMouseDown, .rightMouseUp, .rightMouseDragged,
-                                     .otherMouseDown, .otherMouseUp, .otherMouseDragged, .keyDown]
+                                     .otherMouseDown, .otherMouseUp, .otherMouseDragged, .keyDown, .scrollWheel]
         let mask = events.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         let callback: CGEventTapCallBack = { _, type, event, context in
             guard let context else { return Unmanaged.passUnretained(event) }
@@ -277,6 +279,12 @@ final class GestureController: ObservableObject {
         }
         guard event.getIntegerValueField(.eventSourceUserData) != replayMarker else { return unchanged }
 
+        if type == .scrollWheel {
+            guard wheelIsOpen, model.pageCount > 1 else { return unchanged }
+            handlePageScroll(event)
+            return nil
+        }
+
         if keyboardWheelIsOpen {
             if type == .keyDown, event.getIntegerValueField(.keyboardEventKeycode) == 53 {
                 cancelForEnvironmentChange()
@@ -385,6 +393,28 @@ final class GestureController: ObservableObject {
         }
     }
 
+    private func handlePageScroll(_ event: CGEvent) {
+        guard event.getIntegerValueField(.scrollWheelEventMomentumPhase) == 0 else { return }
+        let continuous = event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0
+        let delta = event.getDoubleValueField(continuous ? .scrollWheelEventPointDeltaAxis1 : .scrollWheelEventDeltaAxis1)
+        guard delta != 0 else { return }
+
+        if continuous {
+            let now = ProcessInfo.processInfo.systemUptime
+            guard now - lastPageScrollTime >= 0.18 else { return }
+            if pageScrollDelta.sign != delta.sign { pageScrollDelta = 0 }
+            pageScrollDelta += delta
+            guard abs(pageScrollDelta) >= 32 else { return }
+            lastPageScrollTime = now
+            pageScrollDelta = 0
+        }
+
+        guard model.movePage(by: delta < 0 ? 1 : -1) else { return }
+        selection.reset()
+        selectionOrigin = appKitPoint(event.location)
+        didMoveForSelection = false
+    }
+
     private func completeSelection() {
         let shouldToggleMainWindow = wheelIsOpen && selection.isOpenMainWindowHovered
         let closeTarget = wheelIsOpen && selection.isCloseHovered
@@ -474,7 +504,9 @@ final class GestureController: ObservableObject {
 
     private func show(at point: CGPoint) {
         dismiss(animated: false)
-        model.refresh()
+        model.refresh(capacity: preferences.wheelCapacity)
+        pageScrollDelta = 0
+        lastPageScrollTime = -Double.infinity
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let screen else { return }
         presentedDiameter = WheelActionGeometry.fittingDiameter(CGFloat(preferences.wheelDiameter), available: screen.visibleFrame.size)

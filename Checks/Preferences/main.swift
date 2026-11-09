@@ -55,6 +55,9 @@ MainActor.assumeIsolated {
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let preferences = WheelPreferences(defaults: defaults)
+    precondition(preferences.wheelCapacity == .eight)
+    preferences.wheelCapacity = .four
+    precondition(WheelPreferences(defaults: defaults).wheelCapacity == .four)
     precondition(preferences.theme == .glass)
     preferences.theme = .minimal
     precondition(WheelPreferences(defaults: defaults).theme == .minimal)
@@ -92,6 +95,7 @@ MainActor.assumeIsolated {
     defaults.set(999, forKey: "wheelTriggerButton")
     precondition(WheelPreferences(defaults: defaults).triggerButton == .right)
     preferences.reset()
+    precondition(WheelPreferences(defaults: defaults).wheelCapacity == .eight)
     precondition(WheelPreferences(defaults: defaults).theme == .glass)
     precondition(!WheelPreferences(defaults: defaults).showsHoldPreview)
     precondition(WheelPreferences(defaults: defaults).triggerButton == .right)

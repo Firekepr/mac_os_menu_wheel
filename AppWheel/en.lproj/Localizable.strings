@@ -144,3 +144,8 @@
 "Frutiger Aero · Liquid Glass" = "Frutiger Aero · Liquid Glass";
 "Fechar janela" = "Close";
 "Fechar janela do AppWheel" = "Close AppWheel window";
+"Posições por página" = "Slots per page";
+"Página %@ de %@" = "Page %@ of %@";
+"Página anterior" = "Previous page";
+"Próxima página" = "Next page";
+"Role para trocar de página." = "Scroll to change pages.";

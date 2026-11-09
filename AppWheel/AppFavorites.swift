@@ -36,25 +36,45 @@ struct FavoriteApp: Codable, Identifiable {
     }
 }
 
-/// Conditional favorites reserve their direction only while running.
-/// Keep eight sectors whenever favorites are configured so directions stay stable.
 enum FavoriteLayout {
-    static func arrange(runningIDs: [String], favorites: [Int: String], onlyWhenRunning: Set<String> = []) -> [String?] {
-        var seen = Set<String>()
-        let running = runningIDs.filter { seen.insert($0).inserted }
-        var pinned: [Int: String] = [:]
-        var reserved = Set<String>()
-        var configured = Set<String>()
-        for position in favorites.keys.sorted() where (0..<8).contains(position) {
-            guard let id = favorites[position], configured.insert(id).inserted else { continue }
-            if !onlyWhenRunning.contains(id) || seen.contains(id) {
-                pinned[position] = id
-                reserved.insert(id)
-            }
+    static func pages(runningIDs: [String], favorites: [Int: String], onlyWhenRunning: Set<String> = [],
+                      capacity: WheelCapacity = .eight) -> [[String?]] {
+        let count = capacity.rawValue
+        let blank = Array<String?>(repeating: nil, count: count)
+        var pages = [blank]
+        let running = Set(runningIDs)
+        var placed = Set<String>()
+        let directions = favorites.keys.filter { (0..<8).contains($0) }.sorted {
+            // Exact directions take priority when four sectors collapse eight directions.
+            let first = ($0 * count).isMultiple(of: 8)
+            let second = ($1 * count).isMultiple(of: 8)
+            return first == second ? $0 < $1 : first
         }
-        guard !configured.isEmpty else { return Array(running.prefix(8)).map(Optional.some) }
-        var remaining = running.filter { !reserved.contains($0) }.makeIterator()
-        return (0..<8).map { pinned[$0] ?? remaining.next() }
+
+        for direction in directions {
+            guard let id = favorites[direction],
+                  !onlyWhenRunning.contains(id) || running.contains(id),
+                  placed.insert(id).inserted else { continue }
+            if !pages[pages.count - 1].contains(nil) { pages.append(blank) }
+            let page = pages.count - 1
+            let slot = pages[page].indices.filter { pages[page][$0] == nil }.min {
+                let first = abs($0 * 8 - direction * count)
+                let second = abs($1 * 8 - direction * count)
+                return min(first, 8 * count - first) < min(second, 8 * count - second)
+            }!
+            pages[page][slot] = id
+        }
+
+        var page = 0
+        for id in runningIDs where placed.insert(id).inserted {
+            while !pages[page].contains(nil) {
+                page += 1
+                if page == pages.count { pages.append(blank) }
+            }
+            let slot = pages[page].firstIndex(of: nil)!
+            pages[page][slot] = id
+        }
+        return pages
     }
 }
 

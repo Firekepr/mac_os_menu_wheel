@@ -32,15 +32,18 @@ struct WheelSlot: Identifiable {
 final class RunningApps: ObservableObject {
     @Published private(set) var slots: [WheelSlot] = []
     var apps: [WheelApp] { slots.compactMap(\.app) }
-    var visibleRunningCount: Int { apps.filter { $0.application != nil }.count }
+    private var pages: [[WheelSlot]] = []
+    private var capacity: WheelCapacity
+    private(set) var pageIndex = 0
+    var pageCount: Int { pages.count }
     private let favorites: AppFavorites
     private var favoritesSubscription: AnyCancellable?
     private var workspaceSubscription: AnyCancellable?
     @Published private(set) var runningApplicationIDs: Set<String> = []
-    @Published private(set) var total = 0
     @Published private(set) var activationError: String?
 
-    init(favorites: AppFavorites? = nil, observesFavorites: Bool = true) {
+    init(favorites: AppFavorites? = nil, observesFavorites: Bool = true, capacity: WheelCapacity = .eight) {
+        self.capacity = capacity
         self.favorites = favorites ?? AppFavorites()
         refresh()
         let center = NSWorkspace.shared.notificationCenter
@@ -63,7 +66,8 @@ final class RunningApps: ObservableObject {
         }
     }
 
-    func refresh() {
+    func refresh(capacity: WheelCapacity? = nil) {
+        if let capacity { self.capacity = capacity }
         let running = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             .sorted {
@@ -73,20 +77,33 @@ final class RunningApps: ObservableObject {
         let entries = running.map { WheelApp(application: $0) }.filter { seen.insert($0.id).inserted }
         let ids = Set(entries.map(\.id))
         if runningApplicationIDs != ids { runningApplicationIDs = ids }
-        total = entries.count
         let pinned = Dictionary(uniqueKeysWithValues: favorites.apps.map { ($0.position, $0.id) })
         let conditional = Set(favorites.apps.filter { $0.visibility == .whenRunning }.map(\.id))
-        let identifiers = FavoriteLayout.arrange(runningIDs: entries.map(\.id), favorites: pinned, onlyWhenRunning: conditional)
-        slots = identifiers.enumerated().map { position, id in
-            guard let id else { return WheelSlot(id: position, app: nil) }
-            let favorite = favorites.apps.first { $0.id == id }
-            let app = entries.first { $0.id == id }.map { entry -> WheelApp in
-                var entry = entry
-                entry.favorite = favorite
-                return entry
-            } ?? favorite.map { WheelApp(application: nil, favorite: $0) }
-            return WheelSlot(id: position, app: app)
+        let layouts = FavoriteLayout.pages(runningIDs: entries.map(\.id), favorites: pinned,
+                                          onlyWhenRunning: conditional, capacity: self.capacity)
+        let entriesByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) })
+        let favoritesByID = Dictionary(uniqueKeysWithValues: favorites.apps.map { ($0.id, $0) })
+        pages = layouts.map { identifiers in
+            identifiers.enumerated().map { position, id in
+                guard let id else { return WheelSlot(id: position, app: nil) }
+                let favorite = favoritesByID[id]
+                var app = entriesByID[id]
+                if app != nil { app?.favorite = favorite }
+                else if let favorite { app = WheelApp(application: nil, favorite: favorite) }
+                return WheelSlot(id: position, app: app)
+            }
         }
+        pageIndex = 0
+        slots = pages[pageIndex]
+    }
+
+    @discardableResult
+    func movePage(by step: Int) -> Bool {
+        let next = pageIndex + step
+        guard pages.indices.contains(next), next != pageIndex else { return false }
+        pageIndex = next
+        slots = pages[next]
+        return true
     }
 
     func isRunning(_ app: WheelApp) -> Bool { runningApplicationIDs.contains(app.id) }

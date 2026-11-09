@@ -22,6 +22,10 @@ enum MouseTriggerButton: Int, CaseIterable, Identifiable {
     }
 }
 
+enum WheelCapacity: Int, CaseIterable {
+    case four = 4, eight = 8, twelve = 12
+}
+
 @MainActor
 final class WheelPreferences: ObservableObject {
     static let defaultDiameter = 380.0
@@ -29,6 +33,10 @@ final class WheelPreferences: ObservableObject {
     private let defaults: UserDefaults
     @Published var theme: WheelTheme {
         didSet { defaults.set(theme.rawValue, forKey: "wheelTheme") }
+    }
+
+    @Published var wheelCapacity: WheelCapacity {
+        didSet { defaults.set(wheelCapacity.rawValue, forKey: "wheelCapacity") }
     }
 
     @Published var wheelDiameter: Double {
@@ -76,6 +84,7 @@ final class WheelPreferences: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        wheelCapacity = WheelCapacity(rawValue: defaults.integer(forKey: "wheelCapacity")) ?? .eight
         theme = defaults.string(forKey: "wheelTheme").flatMap(WheelTheme.init(rawValue:)) ?? .glass
         keyboardShortcut = defaults.data(forKey: "wheelKeyboardShortcut")
             .flatMap { try? JSONDecoder().decode(WheelKeyboardShortcut.self, from: $0) }
@@ -91,6 +100,7 @@ final class WheelPreferences: ObservableObject {
         L10n.text("Segure o %@ por %@ ms, aponte e solte.", triggerButton.title.lowercased(), String(Int((holdDelay * 1000).rounded())))
     }
     func reset() {
+        wheelCapacity = .eight
         theme = .glass
         wheelDiameter = Self.defaultDiameter
         holdDelay = Self.defaultDelay
@@ -189,7 +199,12 @@ struct WheelPreferencesView: View {
                         Text(theme.title).tag(theme)
                     }
                 }
-                WheelThemePreview(theme: preferences.theme)
+                Picker(L10n.text("Posições por página"), selection: $preferences.wheelCapacity) {
+                    ForEach(WheelCapacity.allCases, id: \.self) { capacity in
+                        Text(String(capacity.rawValue)).tag(capacity)
+                    }
+                }
+                WheelThemePreview(theme: preferences.theme, capacity: preferences.wheelCapacity)
 
                 VStack(spacing: 10) {
                     LabeledContent(L10n.text("Tamanho da roda"), value: "\(Int(preferences.wheelDiameter)) pt")
@@ -265,6 +280,7 @@ struct WheelPreferencesView: View {
 
 private struct WheelThemePreview: View {
     let theme: WheelTheme
+    let capacity: WheelCapacity
     @StateObject private var model = RunningApps()
 
     var body: some View {
@@ -274,5 +290,6 @@ private struct WheelThemePreview: View {
             .frame(maxWidth: .infinity)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+            .onChange(of: capacity, initial: true) { _, capacity in model.refresh(capacity: capacity) }
     }
 }

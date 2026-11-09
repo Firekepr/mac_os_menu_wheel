@@ -1,25 +1,43 @@
 import AppKit
 import Foundation
 
+private func firstPage(runningIDs: [String], favorites: [Int: String],
+                       onlyWhenRunning: Set<String> = []) -> [String?] {
+    FavoriteLayout.pages(runningIDs: runningIDs, favorites: favorites, onlyWhenRunning: onlyWhenRunning)[0]
+}
+
 MainActor.assumeIsolated {
     let suite = "AppWheel.FavoriteChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let favorites = AppFavorites(defaults: defaults)
     precondition(favorites.apps.isEmpty)
-    precondition(FavoriteLayout.arrange(runningIDs: ["a", "b"], favorites: [:]) == ["a", "b"])
+    precondition(firstPage(runningIDs: ["a", "b"], favorites: [:]) == ["a", "b", nil, nil, nil, nil, nil, nil])
+    let fiveApps = ["a", "b", "c", "d", "e"]
+    precondition(FavoriteLayout.pages(runningIDs: fiveApps, favorites: [:], capacity: .four)
+                 == [["a", "b", "c", "d"], ["e", nil, nil, nil]])
+    let eightPins = Dictionary(uniqueKeysWithValues: (0..<8).map { ($0, "favorite\($0)") })
+    for capacity in WheelCapacity.allCases {
+        let pages = FavoriteLayout.pages(runningIDs: fiveApps + ["favorite0", "a"], favorites: eightPins,
+                                         capacity: capacity)
+        let ids = pages.flatMap { $0.compactMap { $0 } }
+        precondition(pages.allSatisfy { $0.count == capacity.rawValue })
+        precondition(ids.count == 13 && Set(ids) == Set(fiveApps + Array(eightPins.values)))
+        precondition(pages[0][0] == "favorite0")
+        precondition(pages[0][capacity.rawValue / 4] == "favorite2")
+    }
     let pinned = [0: "browser", 5: "editor"]
-    let slots = FavoriteLayout.arrange(runningIDs: ["browser", "finder", "terminal", "editor", "music"], favorites: pinned)
+    let slots = firstPage(runningIDs: ["browser", "finder", "terminal", "editor", "music"], favorites: pinned)
     precondition(slots == ["browser", "finder", "terminal", "music", nil, "editor", nil, nil])
-    let closed = FavoriteLayout.arrange(runningIDs: [], favorites: pinned)
+    let closed = firstPage(runningIDs: [], favorites: pinned)
     precondition(closed.count == 8 && closed[0] == "browser" && closed[5] == "editor" && closed[1] == nil)
-    let overflowing = FavoriteLayout.arrange(runningIDs: (0..<20).map { "app\($0)" }, favorites: pinned)
+    let overflowing = firstPage(runningIDs: (0..<20).map { "app\($0)" }, favorites: pinned)
     precondition(overflowing.count == 8 && overflowing[0] == "browser" && overflowing[5] == "editor")
     precondition(Set(overflowing.compactMap { $0 }).count == 8)
-    precondition(FavoriteLayout.arrange(runningIDs: ["a", "a", "b"], favorites: [:]) == ["a", "b"])
-    precondition(FavoriteLayout.arrange(runningIDs: [], favorites: [99: "invalid"]).isEmpty)
+    precondition(firstPage(runningIDs: ["a", "a", "b"], favorites: [:]) == ["a", "b", nil, nil, nil, nil, nil, nil])
+    precondition(firstPage(runningIDs: [], favorites: [99: "invalid"]).allSatisfy { $0 == nil })
     for list in [["a"], ["a", "browser", "b"], ["editor", "browser"]] {
-        let layout = FavoriteLayout.arrange(runningIDs: list, favorites: pinned)
+        let layout = firstPage(runningIDs: list, favorites: pinned)
         precondition(layout[0] == "browser" && layout[5] == "editor")
     }
     favorites.set(position: 5, bundleIdentifier: "test.editor", name: "Editor", path: "/nonexistent/Editor.app")
@@ -61,13 +79,13 @@ MainActor.assumeIsolated {
         """.utf8)
     let migrated = try! JSONDecoder().decode([FavoriteApp].self, from: legacy)
     precondition(migrated[0].visibility == .always, "Upgrade changed existing favorites")
-    let conditionalClosed = FavoriteLayout.arrange(runningIDs: ["finder"], favorites: pinned, onlyWhenRunning: ["browser"])
+    let conditionalClosed = firstPage(runningIDs: ["finder"], favorites: pinned, onlyWhenRunning: ["browser"])
     precondition(conditionalClosed.count == 8 && conditionalClosed[0] == "finder" && conditionalClosed[5] == "editor")
     precondition(!conditionalClosed.contains("browser"))
-    let conditionalOpen = FavoriteLayout.arrange(runningIDs: ["finder", "browser"], favorites: pinned, onlyWhenRunning: ["browser"])
+    let conditionalOpen = firstPage(runningIDs: ["finder", "browser"], favorites: pinned, onlyWhenRunning: ["browser"])
     precondition(conditionalOpen[0] == "browser" && conditionalOpen[5] == "editor")
     precondition(conditionalOpen.filter { $0 == "browser" }.count == 1)
-    let allConditionalClosed = FavoriteLayout.arrange(runningIDs: ["finder"], favorites: [5: "editor"], onlyWhenRunning: ["editor"])
+    let allConditionalClosed = firstPage(runningIDs: ["finder"], favorites: [5: "editor"], onlyWhenRunning: ["editor"])
     precondition(allConditionalClosed.count == 8 && allConditionalClosed[0] == "finder" && allConditionalClosed[5] == nil)
     favorites.set(position: 1, bundleIdentifier: "test.conditional", name: "Condicional", path: "/fake.app")
     favorites.setVisibility(.whenRunning, at: 1)

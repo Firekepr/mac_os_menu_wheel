@@ -9,7 +9,7 @@ struct ContentView: View {
 
     init(preferences: WheelPreferences, favorites: AppFavorites? = nil) {
         self.preferences = preferences
-        _model = StateObject(wrappedValue: RunningApps(favorites: favorites))
+        _model = StateObject(wrappedValue: RunningApps(favorites: favorites, capacity: preferences.wheelCapacity))
     }
 
     private var previewDiameter: CGFloat { min(CGFloat(preferences.wheelDiameter), 280) }
@@ -91,15 +91,36 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
             }
 
-            if model.total > model.visibleRunningCount {
-                Text(L10n.text("%@ de %@ aplicativos abertos na roda.", String(model.visibleRunningCount), String(model.total)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if model.pageCount > 1 {
+                HStack {
+                    Button {
+                        changePage(by: -1)
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel(L10n.text("Página anterior"))
+                    .disabled(model.pageIndex == 0)
+
+                    Text(L10n.text("Página %@ de %@", String(model.pageIndex + 1), String(model.pageCount)))
+                        .font(.caption).monospacedDigit()
+
+                    Button {
+                        changePage(by: 1)
+                    } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .accessibilityLabel(L10n.text("Próxima página"))
+                    .disabled(model.pageIndex + 1 == model.pageCount)
+                }
             }
         }
         .padding(32)
         .frame(width: 640, height: 800)
         .onAppear { interaction.diameter = previewDiameter }
+        .onChange(of: preferences.wheelCapacity) { _, capacity in
+            model.refresh(capacity: capacity)
+            interaction.reset()
+        }
         .onChange(of: previewDiameter) { _, diameter in
             interaction.reset()
             interaction.diameter = diameter
@@ -119,6 +140,10 @@ struct ContentView: View {
         }
     }
 
+
+    private func changePage(by step: Int) {
+        if model.movePage(by: step) { interaction.reset() }
+    }
 
     private func select(at point: CGPoint) {
         interaction.diameter = previewDiameter

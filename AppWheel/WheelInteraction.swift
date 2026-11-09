@@ -10,6 +10,7 @@ final class WheelInteraction: ObservableObject {
     @Published var id: String?
     @Published private(set) var closeTargetID: String?
     @Published private(set) var isCloseHovered = false
+    @Published private(set) var hoveredScriptAction: AppScriptAction?
     @Published private(set) var isOpenMainWindowHovered = false
     @Published var isMainWindowOpen = false
     @Published var isPresented = false
@@ -24,6 +25,7 @@ final class WheelInteraction: ObservableObject {
     init(dwellDelay: TimeInterval = 0.65) { self.dwellDelay = dwellDelay }
 
     func select(_ id: String?, canRevealClose: Bool) {
+        if hoveredScriptAction != nil { hoveredScriptAction = nil }
         if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
         if isCloseHovered { isCloseHovered = false }
         if self.id != id {
@@ -44,16 +46,20 @@ final class WheelInteraction: ObservableObject {
         }
     }
 
-    func hoverClose() {
+    func hoverClose() { hoverAction(nil) }
+
+    private func hoverAction(_ action: AppScriptAction?) {
         cancelDwell()
+        if hoveredScriptAction != action { hoveredScriptAction = action }
         if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
         if id != closeTargetID { id = closeTargetID }
-        let hovered = closeTargetID != nil
+        let hovered = closeTargetID != nil && action == nil
         if isCloseHovered != hovered { isCloseHovered = hovered }
     }
 
     func reset() {
         cancelDwell()
+        if hoveredScriptAction != nil { hoveredScriptAction = nil }
         if id != nil { id = nil }
         if closeTargetID != nil { closeTargetID = nil }
         if isCloseHovered { isCloseHovered = false }
@@ -83,11 +89,15 @@ final class WheelInteraction: ObservableObject {
         }
         let targetIndex = slots.firstIndex { $0.app?.id == closeTargetID && closeTargetID != nil }
         let target = targetIndex.flatMap { slots[$0].app }
-        if target?.canRequestQuit == true,
-           let targetIndex,
-           WheelActionGeometry.closePath(diameter: diameter, index: targetIndex, count: slots.count).cgPath.contains(point) {
-            hoverClose()
-            return
+        if let target, target.canRequestQuit, let targetIndex {
+            let actions = target.outerActions
+            for (part, action) in actions.enumerated() {
+                if WheelActionGeometry.actionPath(diameter: diameter, index: targetIndex, count: slots.count,
+                                                  part: part, parts: actions.count).cgPath.contains(point) {
+                    hoverAction(action)
+                    return
+                }
+            }
         }
         let index = WheelGeometry.index(at: local, count: slots.count,
                                         allowsBeyondEdge: allowsBeyondEdge, diameter: diameter)
@@ -111,11 +121,21 @@ enum WheelActionGeometry {
     }
     static func actionRadius(diameter: CGFloat) -> CGFloat { diameter / 2 + diameter * 45 / WheelGeometry.size }
     static func closePath(diameter: CGFloat, index: Int, count: Int) -> Path {
-        guard count > 0, (0..<count).contains(index) else { return Path() }
+        actionPath(diameter: diameter, index: index, count: count, part: 0, parts: 1)
+    }
+
+    static func actionAngle(index: Int, count: Int, part: Int, parts: Int) -> Double {
+        let span = min(360 / Double(count), 60) - 4
+        return Double(index) * 360 / Double(count) - 90
+            + span * ((Double(part) + 0.5) / Double(parts) - 0.5)
+    }
+
+    static func actionPath(diameter: CGFloat, index: Int, count: Int, part: Int, parts: Int) -> Path {
+        guard count > 0, (0..<count).contains(index), parts > 0, (0..<parts).contains(part) else { return Path() }
         let side = outerSize(diameter: diameter)
         let center = CGPoint(x: side / 2, y: side / 2)
-        let middle = Double(index) * 360 / Double(count) - 90
-        let halfSpan = min(360 / Double(count), 60) / 2 - 2
+        let middle = actionAngle(index: index, count: count, part: part, parts: parts)
+        let halfSpan = (min(360 / Double(count), 60) - 4) / Double(parts) / 2 - (parts > 1 ? 0.75 : 0)
         let inner = diameter / 2 + diameter * 10 / WheelGeometry.size
         let outer = diameter / 2 + diameter * 80 / WheelGeometry.size
         let start = Angle.degrees(middle - halfSpan)
@@ -131,12 +151,14 @@ enum WheelActionGeometry {
     }
 }
 
-private struct CloseActionSector: Shape {
+private struct OuterActionSector: Shape {
     let diameter: CGFloat
     let index: Int
     let count: Int
+    let part: Int
+    let parts: Int
     func path(in rect: CGRect) -> Path {
-        WheelActionGeometry.closePath(diameter: diameter, index: index, count: count)
+        WheelActionGeometry.actionPath(diameter: diameter, index: index, count: count, part: part, parts: parts)
     }
 }
 
@@ -164,36 +186,51 @@ struct WheelWithActions: View {
                 .frame(width: diameter, height: diameter)
 
             if let index = closeIndex, let target = model.slots[index].app {
-                let angle = Double(index) * 2 * .pi / Double(model.slots.count) - .pi / 2
-                let radius = WheelActionGeometry.actionRadius(diameter: diameter)
-                let shape = CloseActionSector(diameter: diameter, index: index, count: model.slots.count)
-                ZStack {
-                    WheelBackdrop(shape: shape, theme: theme)
-                    if theme.isAero {
-                        shape.fill(Color(red: 0.45, green: 0.06, blue: 0.13)
-                            .opacity(theme == .frutigerAeroGlass
-                                     ? (interaction.isCloseHovered ? 0.82 : 0.68)
-                                     : (interaction.isCloseHovered ? 0.95 : 0.80)))
-                    } else {
-                        shape.fill(.red.opacity(interaction.isCloseHovered ? 0.40 : 0.08))
+                let actions = target.outerActions
+                ForEach(actions.indices, id: \.self) { part in
+                    let action = actions[part]
+                    let highlighted = action.map { $0 == interaction.hoveredScriptAction } ?? interaction.isCloseHovered
+                    let angle = WheelActionGeometry.actionAngle(index: index, count: model.slots.count,
+                                                                 part: part, parts: actions.count) * .pi / 180
+                    let radius = WheelActionGeometry.actionRadius(diameter: diameter)
+                    let shape = OuterActionSector(diameter: diameter, index: index, count: model.slots.count,
+                                                  part: part, parts: actions.count)
+                    let accent: Color = action == nil ? .red : .accentColor
+                    let label = action.map { L10n.text($0.title) } ?? L10n.text("Fechar %@", target.name)
+                    ZStack {
+                        WheelBackdrop(shape: shape, theme: theme)
+                        if action == nil && theme.isAero {
+                            shape.fill(Color(red: 0.45, green: 0.06, blue: 0.13)
+                                .opacity(theme == .frutigerAeroGlass
+                                         ? (highlighted ? 0.82 : 0.68)
+                                         : (highlighted ? 0.95 : 0.80)))
+                        } else {
+                            shape.fill(accent.opacity(highlighted ? 0.40 : 0.08))
+                        }
+                        shape.stroke(accent.opacity(highlighted ? 0.9 : 0.35), lineWidth: theme == .highContrast ? 2 : 1)
+                            .shadow(color: accent.opacity(theme == .glass && highlighted ? 0.4 : 0), radius: 8)
+                        VStack(spacing: 3) {
+                            Image(systemName: action?.symbol ?? "xmark.circle.fill")
+                                .font(.system(size: actions.count == 1 ? 18 : 14 * diameter / WheelGeometry.size,
+                                              weight: .semibold))
+                            if actions.count == 1 {
+                                Text(L10n.text("Fechar")).font(.system(size: 11, weight: .semibold))
+                            }
+                        }
+                        .foregroundStyle(theme == .highContrast || theme.isAero || highlighted ? Color.white : accent)
+                        .offset(x: cos(angle) * radius, y: sin(angle) * radius)
                     }
-                    shape.stroke(.red.opacity(interaction.isCloseHovered ? 0.9 : 0.35), lineWidth: theme == .highContrast ? 2 : 1)
-                        .shadow(color: .red.opacity(theme == .glass && interaction.isCloseHovered ? 0.4 : 0), radius: 8)
-                    VStack(spacing: 3) {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 18, weight: .semibold))
-                        Text(L10n.text("Fechar")).font(.system(size: 11, weight: .semibold))
+                    .frame(width: side, height: side)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(label)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction {
+                        if let action { model.perform(action, on: target) }
+                        else { model.requestQuit(target) }
                     }
-                    .foregroundStyle(theme == .highContrast || theme.isAero || interaction.isCloseHovered
-                                     ? Color.white : .red)
-                    .offset(x: cos(angle) * radius, y: sin(angle) * radius)
+                    .help(label)
                 }
-                .frame(width: side, height: side)
-                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(L10n.text("Fechar %@", target.name))
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { model.requestQuit(target) }
-                .help(L10n.text("Fechar %@", target.name))
             }
         }
         .frame(width: side, height: side)
@@ -201,4 +238,8 @@ struct WheelWithActions: View {
         .animation(.easeOut(duration: 0.15), value: interaction.closeTargetID)
         .animation(.easeOut(duration: 0.12), value: interaction.isCloseHovered)
     }
+}
+
+private extension WheelApp {
+    var outerActions: [AppScriptAction?] { scriptActions.map(Optional.some) + [nil] }
 }

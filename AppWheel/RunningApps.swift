@@ -5,6 +5,7 @@ import Combine
 struct WheelApp: Identifiable {
     let application: NSRunningApplication?
     var favorite: FavoriteApp? = nil
+    var scriptActions: [AppScriptAction] = []
     var id: String { favorite?.id ?? application?.bundleIdentifier ?? application?.bundleURL?.path ?? "pid:\(application?.processIdentifier ?? -1)" }
     var name: String { application?.localizedName ?? favorite?.name ?? L10n.text("Aplicativo") }
     var isQuitProtected: Bool {
@@ -76,7 +77,9 @@ final class RunningApps: ObservableObject {
                 ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending
             }
         var seen = Set<String>()
-        let entries = running.map { WheelApp(application: $0) }.filter { seen.insert($0.id).inserted }
+        let entries = running.map {
+            WheelApp(application: $0, scriptActions: AppScriptActions.discover(in: $0))
+        }.filter { seen.insert($0.id).inserted }
         let ids = Set(entries.map(\.id))
         if runningApplicationIDs != ids { runningApplicationIDs = ids }
         let pinned = Dictionary(uniqueKeysWithValues: favorites.apps.map { ($0.position, $0.id) })
@@ -111,6 +114,32 @@ final class RunningApps: ObservableObject {
     }
 
     func isRunning(_ app: WheelApp) -> Bool { runningApplicationIDs.contains(app.id) }
+
+    func perform(_ action: AppScriptAction, on app: WheelApp, completion: ((String?) -> Void)? = nil) {
+        guard let running = app.application, !running.isTerminated, app.scriptActions.contains(action) else {
+            let message = L10n.text("A ação não está mais disponível para %@.", app.name)
+            activationError = message
+            completion?(message)
+            return
+        }
+        let pid = running.processIdentifier
+        activationError = nil
+        Task {
+            let message: String?
+            do {
+                try await AppScriptActions.send(action, to: pid)
+                message = nil
+            } catch let error as NSError {
+                if error.domain == NSOSStatusErrorDomain && error.code == -1743 {
+                    message = L10n.text("Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação.", app.name)
+                } else {
+                    message = L10n.text("Não foi possível executar %@ em %@: %@.", L10n.text(action.title), app.name, error.localizedDescription)
+                }
+            }
+            activationError = message
+            completion?(message)
+        }
+    }
 
     @discardableResult
     func requestQuit(_ app: WheelApp,

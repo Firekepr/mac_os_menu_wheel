@@ -38,6 +38,8 @@ struct ContentView: View {
                     select(at: location)
                     if interaction.isOpenMainWindowHovered {
                         gesture.toggleMainWindow()
+                    } else if let action = interaction.hoveredScriptAction, let selected {
+                        model.perform(action, on: selected)
                     } else if interaction.isCloseHovered,
                        let target = model.apps.first(where: { $0.id == interaction.closeTargetID }) {
                         model.requestQuit(target)

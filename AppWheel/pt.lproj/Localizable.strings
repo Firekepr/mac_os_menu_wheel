@@ -149,3 +149,10 @@
 "Página anterior" = "Página anterior";
 "Próxima página" = "Próxima página";
 "Role para trocar de página." = "Role para trocar de página.";
+"Faixa anterior" = "Faixa anterior";
+"Reproduzir/Pausar" = "Reproduzir/Pausar";
+"Próxima faixa" = "Próxima faixa";
+"A ação não está mais disponível para %@." = "A ação não está mais disponível para %@.";
+"Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação." = "Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação.";
+"Não foi possível executar %@ em %@: %@." = "Não foi possível executar %@ em %@: %@.";
+"%@ executado em %@." = "%@ executado em %@.";

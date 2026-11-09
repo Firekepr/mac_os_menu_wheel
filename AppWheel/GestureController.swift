@@ -420,6 +420,7 @@ final class GestureController: ObservableObject {
         let closeTarget = wheelIsOpen && selection.isCloseHovered
             ? model.apps.first { $0.id == selection.closeTargetID } : nil
         let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
+        let scriptAction = wheelIsOpen ? selection.hoveredScriptAction : nil
         dismiss()
         if shouldToggleMainWindow {
             DispatchQueue.main.async { [weak self] in self?.toggleMainWindow() }
@@ -428,6 +429,12 @@ final class GestureController: ObservableObject {
                 guard let self else { return }
                 let error = self.model.requestQuit(closeTarget)
                 self.status = error ?? L10n.text("Encerramento solicitado para %@.", closeTarget.name)
+            }
+        } else if let chosen, let scriptAction {
+            DispatchQueue.main.async { [weak self] in
+                self?.model.perform(scriptAction, on: chosen) { [weak self] error in
+                    self?.status = error ?? L10n.text("%@ executado em %@.", L10n.text(scriptAction.title), chosen.name)
+                }
             }
         } else if let chosen {
             // Consume the release and start the exit before activating

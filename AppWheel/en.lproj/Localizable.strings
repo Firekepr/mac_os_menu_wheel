@@ -149,3 +149,10 @@
 "Página anterior" = "Previous page";
 "Próxima página" = "Next page";
 "Role para trocar de página." = "Scroll to change pages.";
+"Faixa anterior" = "Previous track";
+"Reproduzir/Pausar" = "Play/Pause";
+"Próxima faixa" = "Next track";
+"A ação não está mais disponível para %@." = "This action is no longer available for %@.";
+"Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação." = "Allow AppWheel to control %@ in Privacy & Security → Automation.";
+"Não foi possível executar %@ em %@: %@." = "Could not run %@ in %@: %@.";
+"%@ executado em %@." = "%@ ran in %@.";

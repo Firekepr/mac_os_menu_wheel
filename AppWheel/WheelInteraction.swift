@@ -176,11 +176,18 @@ struct WheelWithActions: View {
         }
     }
 
+    private var selectedActionTitle: String? {
+        guard let closeIndex, model.slots[closeIndex].app?.id == interaction.id else { return nil }
+        if let action = interaction.hoveredScriptAction { return L10n.text(action.title) }
+        return interaction.isCloseHovered ? L10n.text("Fechar") : nil
+    }
+
     var body: some View {
         let diameter = interaction.diameter
         let side = WheelActionGeometry.outerSize(diameter: diameter)
         ZStack {
-            WheelView(model: model, selectedID: interaction.id, isOpenMainWindowHovered: interaction.isOpenMainWindowHovered,
+            WheelView(model: model, selectedID: interaction.id, selectedActionTitle: selectedActionTitle,
+                      isOpenMainWindowHovered: interaction.isOpenMainWindowHovered,
                       isActive: isActive, theme: theme, isMainWindowOpen: isMainWindowOpen)
                 .scaleEffect(diameter / WheelGeometry.size)
                 .frame(width: diameter, height: diameter)

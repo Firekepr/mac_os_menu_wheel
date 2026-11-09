@@ -121,6 +121,7 @@ struct WheelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: RunningApps
     let selectedID: String?
+    var selectedActionTitle: String?
     var isOpenMainWindowHovered = false
     var isActive = true
     var theme: WheelTheme = .glass
@@ -285,7 +286,7 @@ struct WheelView: View {
             }
             .animation(.easeInOut(duration: reduceMotion ? 0.12 : 0.20), value: model.pageTurnRevision)
 
-            VStack(spacing: 6) {
+            VStack(spacing: selectedActionTitle == nil ? 6 : 3) {
                 Image(systemName: selected == nil ? "cursorarrow.rays" : "arrow.up.forward.app")
                     .font(.title2)
                     .foregroundStyle(selected == nil ? Color.secondary : theme.accent)
@@ -295,13 +296,12 @@ struct WheelView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .contentTransition(.opacity)
-                if let pageLabel {
-                    Label(pageLabel, systemImage: "arrow.up.arrow.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .monospacedDigit()
+                if let selectedActionTitle {
+                    Text(selectedActionTitle)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme == .highContrast ? Color.primary : theme.accent)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .help(L10n.text("Role para trocar de página."))
+                        .minimumScaleFactor(0.8)
                 }
                 if let memoryLabel {
                     Text(memoryLabel)
@@ -311,6 +311,14 @@ struct WheelView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .help(memory?.help ?? L10n.text("Consumo de memória do aplicativo selecionado."))
+                }
+                if let pageLabel {
+                    Label(pageLabel, systemImage: "arrow.up.arrow.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .help(L10n.text("Role para trocar de página."))
                 }
             }
             .offset(y: selected == nil ? -16 : 0)
@@ -367,6 +375,7 @@ struct WheelView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.text("Roda de aplicativos"))
         .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"),
+                             selectedActionTitle,
                              selected.map { L10n.text(model.isRunning($0) ? "Em execução" : "Fechado") },
                              selected.flatMap { isPlaying($0) ? L10n.text("Reproduzindo mídia") : nil },
                              memoryLabel, pageLabel].compactMap { $0 }.joined(separator: ", "))

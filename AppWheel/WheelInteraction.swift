@@ -11,6 +11,7 @@ final class WheelInteraction: ObservableObject {
     @Published private(set) var closeTargetID: String?
     @Published private(set) var isCloseHovered = false
     @Published private(set) var hoveredScriptAction: AppScriptAction?
+    @Published private(set) var mailBadgeNeedsAuthorization = false
     @Published private(set) var isOpenMainWindowHovered = false
     @Published var isMainWindowOpen = false
     @Published var isPresented = false
@@ -74,6 +75,7 @@ final class WheelInteraction: ObservableObject {
         }
         if let id, let closeTargetID, id != closeTargetID {
             self.closeTargetID = nil
+            mailBadgeNeedsAuthorization = false
         }
         guard canRevealClose, let id else { cancelDwell(); return }
         guard closeTargetID != id, dwellTimer == nil, windowLookup == nil else { return }
@@ -85,8 +87,16 @@ final class WheelInteraction: ObservableObject {
                 let loadWindows = self.loadWindows
                 self.windowLookup = Task { [weak self] in
                     let windows = await loadWindows(app)
+                    let needsAuthorization: Bool
+                    if !Task.isCancelled, app.id == AppScriptActions.mailID,
+                       let pid = app.application?.processIdentifier {
+                        needsAuthorization = await AppScriptActions.mailBadgeNeedsAuthorization(pid: pid)
+                    } else {
+                        needsAuthorization = false
+                    }
                     guard !Task.isCancelled, let self, self.id == id else { return }
                     self.windowLookup = nil
+                    self.mailBadgeNeedsAuthorization = needsAuthorization
                     if windows.count > 1 {
                         self.windowPage = 0
                         self.windows = windows
@@ -110,6 +120,7 @@ final class WheelInteraction: ObservableObject {
 
     func reset() {
         cancelDwell()
+        if mailBadgeNeedsAuthorization { mailBadgeNeedsAuthorization = false }
         if isChoosingWindow { windows = [] }
         if windowPage != 0 { windowPage = 0 }
         setWindowHover(nil, action: nil)
@@ -155,7 +166,7 @@ final class WheelInteraction: ObservableObject {
             reset()
         }
         if let target, target.canRequestQuit, let targetIndex {
-            let actions = target.outerActions
+            let actions = appActions(for: target)
             for (part, action) in actions.enumerated() {
                 if WheelActionGeometry.actionPath(diameter: diameter, index: targetIndex, count: slots.count,
                                                   part: part, parts: actions.count).cgPath.contains(point) {
@@ -192,7 +203,7 @@ final class WheelInteraction: ObservableObject {
 
     private func updateWindowChoice(at point: CGPoint, index: Int, count: Int) -> Bool {
         if let hoveredWindow, visibleWindows.indices.contains(hoveredWindow) {
-            let actions = windows[hoveredWindow].actions
+            let actions = windowActions(for: windows[hoveredWindow])
             for (part, action) in actions.enumerated() {
                 if WheelActionGeometry.actionPath(diameter: diameter, index: index, count: count,
                                                   part: part, parts: actions.count, band: .windowActions).contains(point) {
@@ -211,6 +222,16 @@ final class WheelInteraction: ObservableObject {
         // Keep the submenu visible while crossing the gap, but release in the gap cancels.
         setWindowHover(hoveredWindow, action: nil)
         return false
+    }
+
+    func appActions(for app: WheelApp) -> [AppScriptAction?] {
+        let authorization: [AppScriptAction?] = mailBadgeNeedsAuthorization && app.id == AppScriptActions.mailID
+            ? [AppScriptActions.authorizeMailBadge] : []
+        return authorization + app.scriptActions.map(Optional.some) + [nil]
+    }
+
+    func windowActions(for window: WheelWindow) -> [WindowAction] {
+        mailBadgeNeedsAuthorization ? [.script(AppScriptActions.authorizeMailBadge)] + window.actions : window.actions
     }
 }
 
@@ -284,6 +305,7 @@ struct WheelWithActions: View {
     @ObservedObject var model: RunningApps
     @ObservedObject var interaction: WheelInteraction
     var isActive = true
+    var showsMemoryUsage = false
     var theme: WheelTheme = .glass
     var isMainWindowOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -326,12 +348,13 @@ struct WheelWithActions: View {
         }
         if let hoveredWindow = interaction.hoveredWindow {
             let window = interaction.windows[hoveredWindow]
-            let actions = window.actions
+            let actions = interaction.windowActions(for: window)
             ForEach(actions.indices, id: \.self) { part in
                 let action = actions[part]
+                let accent: Color? = action == .script(AppScriptActions.authorizeMailBadge) ? .orange : (action == .close ? .red : nil)
                 windowSector(index: index, part: part, parts: actions.count,
                              band: .windowActions, highlighted: interaction.hoveredWindowAction == action,
-                             label: action.title, accent: action == .close ? .red : nil) {
+                             label: action.title, accent: accent) {
                     Image(systemName: action.symbol)
                 } perform: {
                     model.perform(action, on: window)
@@ -388,14 +411,14 @@ struct WheelWithActions: View {
         ZStack {
             WheelView(model: model, selectedID: interaction.id, selectedActionTitle: selectedActionTitle,
                       selectedWindowTitle: selectedWindowTitle, isOpenMainWindowHovered: interaction.isOpenMainWindowHovered,
-                      isActive: isActive, theme: theme, isMainWindowOpen: isMainWindowOpen)
+                      isActive: isActive, showsMemoryUsage: showsMemoryUsage, theme: theme, isMainWindowOpen: isMainWindowOpen)
                 .scaleEffect(diameter / WheelGeometry.size)
                 .frame(width: diameter, height: diameter)
 
             if let index = targetIndex, interaction.isChoosingWindow {
                 windowSectors(at: index)
             } else if let index = targetIndex, let target = model.slots[index].app, target.canRequestQuit {
-                let actions = target.outerActions
+                let actions = interaction.appActions(for: target)
                 ForEach(actions.indices, id: \.self) { part in
                     let action = actions[part]
                     let highlighted = action.map { $0 == interaction.hoveredScriptAction } ?? interaction.isCloseHovered
@@ -404,7 +427,7 @@ struct WheelWithActions: View {
                     let radius = WheelActionGeometry.actionRadius(diameter: diameter)
                     let shape = OuterActionSector(diameter: diameter, index: index, count: model.slots.count,
                                                   part: part, parts: actions.count)
-                    let accent: Color = action == nil ? .red : .accentColor
+                    let accent: Color = action == AppScriptActions.authorizeMailBadge ? .orange : (action == nil ? .red : .accentColor)
                     let label = action.map { L10n.text($0.title) } ?? L10n.text("Fechar %@", target.name)
                     ZStack {
                         WheelBackdrop(shape: shape, theme: theme)
@@ -447,8 +470,4 @@ struct WheelWithActions: View {
         .animation(.easeOut(duration: 0.15), value: interaction.closeTargetID)
         .animation(.easeOut(duration: 0.12), value: interaction.isCloseHovered)
     }
-}
-
-private extension WheelApp {
-    var outerActions: [AppScriptAction?] { scriptActions.map(Optional.some) + [nil] }
 }

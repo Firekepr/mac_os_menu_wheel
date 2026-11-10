@@ -62,7 +62,59 @@ enum WindowAction: Equatable {
 }
 
 enum AppWindows {
+    static let braveBundleIdentifier = "com.brave.Browser"
     private static let queue = DispatchQueue(label: "AppWheel.AccessibilityWindows", qos: .userInitiated)
+
+    static func braveHasAudibleTab(pid: pid_t) async -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+        return await withCheckedContinuation { continuation in
+            queue.async {
+                let app = AXUIElementCreateApplication(pid)
+                AXUIElementSetMessagingTimeout(app, 0.15)
+                let windows = attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []
+                for window in windows {
+                    guard let title = attribute(window, kAXTitleAttribute) as? String,
+                          title.hasSuffix(" - Brave") else { continue }
+                    if isBraveAudioLabel(String(title.dropLast(" - Brave".count))) {
+                        continuation.resume(returning: true)
+                        return
+                    }
+                }
+                var pending = windows.reversed().map { ($0, 0) }
+                let deadline = ProcessInfo.processInfo.systemUptime + 0.25
+                while let (element, depth) = pending.popLast(),
+                      ProcessInfo.processInfo.systemUptime < deadline {
+                    let role = attribute(element, kAXRoleAttribute) as? String
+                    if role == kAXRadioButtonRole || role == "AXTab" {
+                        let labels = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute]
+                        if labels.contains(where: { key in
+                            guard let label = attribute(element, key) as? String else { return false }
+                            return isBraveAudioLabel(label)
+                        }) {
+                            continuation.resume(returning: true)
+                            return
+                        }
+                    }
+                    // Browser chrome is outside the web area. Avoid inspecting page contents.
+                    guard depth < 10, role != "AXWebArea", role != "AXTabPanel" else { continue }
+                    let children = attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
+                    pending.append(contentsOf: children.reversed().map { ($0, depth + 1) })
+                }
+                continuation.resume(returning: false)
+            }
+        }
+    }
+
+    private static func isBraveAudioLabel(_ label: String) -> Bool {
+        let label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The memory saver can append a size after Chromium's audio status.
+        let status = label.replacingOccurrences(of: #":\s+[\d.,]+\s*(?:KB|MB|GB|TB)$"#,
+                                                with: "", options: .regularExpression)
+        return status.hasSuffix(" - Audio playing") || status.hasSuffix(" - Reprodução de áudio")
+            || status.hasSuffix(" – áudio em reprodução") || status.hasSuffix(": reproducción de audio")
+            || ["This tab is playing audio", "Esta guia está reproduzindo áudio",
+                "Este separador está a reproduzir áudio", "Esta pestaña está reproduciendo audio"].contains(label)
+    }
 
     @MainActor
     static func list(for app: WheelApp) async -> [WheelWindow] {
@@ -217,7 +269,9 @@ final class RunningApps: ObservableObject {
     func isRunning(_ app: WheelApp) -> Bool { runningApplicationIDs.contains(app.id) }
 
     func perform(_ action: AppScriptAction, on app: WheelApp, completion: ((String?) -> Void)? = nil) {
-        guard let running = app.application, !running.isTerminated, app.scriptActions.contains(action) else {
+        let authorizingBadge = action == AppScriptActions.authorizeMailBadge
+        guard let running = app.application, !running.isTerminated,
+              authorizingBadge ? running.bundleIdentifier == AppScriptActions.mailID : app.scriptActions.contains(action) else {
             let message = L10n.text("A ação não está mais disponível para %@.", app.name)
             activationError = message
             completion?(message)
@@ -232,6 +286,10 @@ final class RunningApps: ObservableObject {
                 message = nil
             } catch let error as NSError {
                 if error.domain == NSOSStatusErrorDomain && error.code == -1743 {
+                    if authorizingBadge,
+                       let settings = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                        NSWorkspace.shared.open(settings)
+                    }
                     message = L10n.text("Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação.", app.name)
                 } else {
                     message = L10n.text("Não foi possível executar %@ em %@: %@.", L10n.text(action.title), app.name, error.localizedDescription)

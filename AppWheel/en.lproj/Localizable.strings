@@ -165,3 +165,12 @@
 "Escolha uma janela" = "Choose a window";
 "Janela %@" = "Window %@";
 "Não foi possível executar a ação na janela selecionada." = "Could not run the action on the selected window.";
+
+"Reproduzindo áudio" = "Playing audio";
+"Sincronizar" = "Synchronize";
+"Nova mensagem" = "New Message";
+"Nenhuma conta IMAP para sincronizar." = "No IMAP accounts to synchronize.";
+"Não lidos: %@" = "Unread: %@";
+
+"Autorizar badge do Mail" = "Allow Mail badge";
+"Mostrar consumo de RAM" = "Show RAM usage";

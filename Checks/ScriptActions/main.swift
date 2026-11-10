@@ -61,5 +61,11 @@ MainActor.assumeIsolated {
         precondition(!AppScriptActions.supportsPlaybackState("com.apple.dt.Xcode"))
         print("Xcode dictionary checks passed: build, run, test and stop target the active workspace.")
     }
+    let mailDictionary = URL(fileURLWithPath: "/System/Applications/Mail.app/Contents/Resources/Mail.sdef")
+    if let installed = try? Data(contentsOf: mailDictionary) {
+        let mailActions = AppScriptActions.discover(in: installed, bundleIdentifier: AppScriptActions.mailID)
+        precondition(mailActions.map(\.title) == ["Sincronizar", "Nova mensagem"])
+        precondition(mailActions.map(\.eventID) == [0x73796163, 0x656D746F])
+    }
     print("Script actions checks passed: dictionary filtering, event codes and outer hit targets.")
 }

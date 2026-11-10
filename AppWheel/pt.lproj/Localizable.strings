@@ -165,3 +165,12 @@
 "Escolha uma janela" = "Escolha uma janela";
 "Janela %@" = "Janela %@";
 "Não foi possível executar a ação na janela selecionada." = "Não foi possível executar a ação na janela selecionada.";
+
+"Reproduzindo áudio" = "Reproduzindo áudio";
+"Sincronizar" = "Sincronizar";
+"Nova mensagem" = "Nova mensagem";
+"Nenhuma conta IMAP para sincronizar." = "Nenhuma conta IMAP para sincronizar.";
+"Não lidos: %@" = "Não lidos: %@";
+
+"Autorizar badge do Mail" = "Autorizar badge do Mail";
+"Mostrar consumo de RAM" = "Mostrar consumo de RAM";

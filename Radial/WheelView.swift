@@ -566,7 +566,7 @@ private struct WheelRim: Shape {
     }
 }
 
-private struct WheelSector: Shape {
+struct WheelSector: Shape {
     let index: Int
     let count: Int
 

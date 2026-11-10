@@ -555,6 +555,7 @@ struct AppActionSettingsView: View {
     private struct Application: Identifiable {
         let id: String
         let name: String
+        let icon: NSImage
         let builtIn: [AppScriptAction]
         let pid: pid_t?
     }
@@ -571,40 +572,245 @@ struct AppActionSettingsView: View {
         (symbol: "envelope.fill", title: "Envelope")
     ]
     @ObservedObject var preferences: AppActionPreferences
+    let capacity: WheelCapacity
+    let theme: WheelTheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var applications: [Application] = []
-    @State private var selectedID = ""
+    @State private var selectedID: String?
+    @State private var revealedAppID: String?
+    @State private var page = 0
     @State private var importTarget: Application?
+    @State private var editing = false
+
+    private var openApps: [Application] { applications.filter { $0.pid != nil } }
+    private var pageCount: Int { max(1, (openApps.count + capacity.rawValue - 1) / capacity.rawValue) }
+    private var pageApps: [Application] {
+        Array(openApps.dropFirst(page * capacity.rawValue).prefix(capacity.rawValue))
+    }
+    private var selectedApp: Application? { applications.first { $0.id == selectedID } }
 
     var body: some View {
-        Form {
-            Section {
+        VStack(spacing: 14) {
+            if let app = selectedApp {
+                HStack {
+                    Button { selectedID = nil } label: {
+                        Label(L10n.text("Voltar para a roda"), systemImage: "chevron.left")
+                    }
+                    Spacer()
+                    Text(app.name).font(.headline)
+                    Spacer()
+                }
+            } else {
                 Text(L10n.text("Escolha quais ações aparecem na roda e personalize a ordem, o nome e o ícone."))
-                    .font(.callout)
+                    .font(.callout).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if !openApps.isEmpty, selectedApp == nil || selectedApp?.pid != nil {
+                wheel
+            } else if selectedApp == nil {
+                Text(L10n.text("Nenhum aplicativo aberto."))
                     .foregroundStyle(.secondary)
-                if applications.isEmpty {
-                    Text(L10n.text("Nenhum aplicativo compatível encontrado."))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Picker(L10n.text("Aplicativo"), selection: $selectedID) {
-                        ForEach(applications) { app in Text(app.name).tag(app.id) }
+                    .frame(maxHeight: .infinity)
+            }
+
+            if let app = selectedApp {
+                actionPreview(for: app)
+            } else {
+                HStack {
+                    if pageCount > 1 {
+                        Button { page -= 1 } label: { Image(systemName: "chevron.left") }
+                            .disabled(page == 0)
+                            .accessibilityLabel(L10n.text("Página anterior"))
+                        Text("\(page + 1) / \(pageCount)").monospacedDigit()
+                        Button { page += 1 } label: { Image(systemName: "chevron.right") }
+                            .disabled(page + 1 >= pageCount)
+                            .accessibilityLabel(L10n.text("Próxima página"))
+                    }
+                    let closedApps = applications.filter { $0.pid == nil }
+                    if !closedApps.isEmpty {
+                        Menu(L10n.text("Apps fechados")) {
+                            ForEach(closedApps) { app in
+                                Button(app.name) { selectedID = app.id }
+                            }
+                        }
+                        .fixedSize()
                     }
                 }
             }
-            if let app = applications.first(where: { $0.id == selectedID }) {
-                let actions = availableActions(for: app)
-                let rows = preferences.rows(for: app.id, actions: actions)
-                Section {
-                    Button(L10n.text("Importar do menu…")) { importTarget = app }
-                        .disabled(app.pid == nil)
-                    if app.pid == nil {
-                        Text(L10n.text("Abra o aplicativo para consultar os comandos do menu."))
-                            .font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .onAppear { refreshApplications() }
+        .task(id: selectedID) {
+            revealedAppID = nil
+            guard let selectedID else { return }
+            if !reduceMotion {
+                do { try await Task.sleep(for: .milliseconds(280)) }
+                catch { return }
+            }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
+                revealedAppID = selectedID
+            }
+        }
+        .onChange(of: capacity) { _, _ in updatePage() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in
+            refreshApplications()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)) { _ in
+            refreshApplications()
+        }
+        .sheet(isPresented: $editing) {
+            if let app = selectedApp { actionEditor(for: app) }
+        }
+        .sheet(item: $importTarget) { app in
+            if let pid = app.pid {
+                AppMenuImportView(appID: app.id, name: app.name, pid: pid,
+                                  builtIn: app.builtIn, preferences: preferences)
+            }
+        }
+    }
+
+    private var wheel: some View {
+        let diameter: CGFloat = 320
+        let radius = diameter * 0.35
+        let focusedIndex = pageApps.firstIndex { $0.id == selectedID }
+        let zoom: CGFloat = focusedIndex == nil || reduceMotion ? 1 : 1.6
+        let zoomedDiameter = diameter * zoom
+        let outerRadius = WheelActionGeometry.outerSize(diameter: zoomedDiameter) / 2
+        let focusRadius = (radius * zoom + outerRadius) / 2
+        let offset = focusedIndex.map { sectorOffset($0, radius: -focusRadius) } ?? .zero
+        let iconSize = 36 * zoom
+
+        return ZStack {
+            WheelBackdrop(shape: Circle(), theme: theme)
+            ForEach(0..<capacity.rawValue, id: \.self) { index in
+                let sector = WheelSector(index: index, count: capacity.rawValue)
+                let app = pageApps.indices.contains(index) ? pageApps[index] : nil
+                let active = focusedIndex == index
+                Button {
+                    selectedID = app?.id
+                } label: {
+                    ZStack {
+                        sector.fill(active ? theme.accent.opacity(0.35) : .clear)
+                        sector.stroke(.primary.opacity(0.18), lineWidth: 1)
+                    }
+                    .contentShape(sector)
+                }
+                .buttonStyle(.plain)
+                .disabled(app == nil || focusedIndex != nil)
+                .opacity(focusedIndex == nil || active ? 1 : 0.3)
+                .accessibilityLabel(app?.name ?? "")
+                .accessibilityHidden(app == nil || focusedIndex != nil)
+                .help(app?.name ?? "")
+            }
+            if focusedIndex == nil {
+                Text(L10n.text("Escolha um app"))
+                    .font(.callout.weight(.semibold))
+                    .allowsHitTesting(false)
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .scaleEffect(zoom)
+        .offset(offset)
+        .overlay {
+            ZStack {
+                ForEach(Array(pageApps.enumerated()), id: \.element.id) { index, app in
+                    Image(nsImage: app.icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: iconSize, height: iconSize)
+                        .offset(sectorOffset(index, radius: radius * zoom))
+                        .opacity(focusedIndex == nil || focusedIndex == index ? 1 : 0.3)
+                }
+            }
+            .offset(offset)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .overlay {
+            if let index = focusedIndex, let app = selectedApp, revealedAppID == app.id {
+                actionSectors(for: app, at: index, diameter: zoomedDiameter)
+                    .offset(offset)
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: focusedIndex == nil ? diameter : 360)
+        .clipped()
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: selectedID)
+    }
+
+    private func actionSectors(for app: Application, at index: Int, diameter: CGFloat) -> some View {
+        let actions = preferences.apply(to: app.builtIn, appID: app.id).map(Optional.some)
+            + (app.id == AppScriptActions.finderID ? [] : [nil])
+        return ZStack {
+            ForEach(actions.indices, id: \.self) { part in
+                let action = actions[part]
+                AppActionSector(diameter: diameter, index: index, count: capacity.rawValue,
+                                part: part, parts: actions.count, action: action, theme: theme)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(action?.displayTitle ?? L10n.text("Fechar %@", app.name))
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func sectorOffset(_ index: Int, radius: CGFloat) -> CGSize {
+        let angle = Double(index) * 2 * .pi / Double(capacity.rawValue) - .pi / 2
+        return CGSize(width: cos(angle) * radius, height: sin(angle) * radius)
+    }
+
+    private func actionPreview(for app: Application) -> some View {
+        let actions = preferences.apply(to: app.builtIn, appID: app.id)
+        return VStack(spacing: 12) {
+            Text(L10n.text("Ações na roda: %@ de %@", String(actions.count), String(AppActionPreferences.visibleLimit)))
+                .font(.callout).foregroundStyle(.secondary)
+            if app.pid == nil, !actions.isEmpty {
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(actions, id: \.preferenceID) { action in
+                        VStack(spacing: 6) {
+                            Image(systemName: action.symbol)
+                                .font(.title3)
+                                .frame(width: 40, height: 40)
+                                .background(.quaternary, in: Circle())
+                            Text(action.displayTitle)
+                                .font(.caption)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(action.displayTitle)
+                        .help(action.displayTitle)
                     }
                 }
+            }
+            HStack {
+                Button { importTarget = app } label: {
+                    Label(L10n.text("Importar do menu…"), systemImage: "plus")
+                }
+                .disabled(app.pid == nil || actions.count >= AppActionPreferences.visibleLimit)
+                Button(L10n.text("Editar ações…")) { editing = true }
+            }
+            if app.pid == nil {
+                Text(L10n.text("Abra o aplicativo para consultar os comandos do menu."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func actionEditor(for app: Application) -> some View {
+        let actions = availableActions(for: app)
+        let rows = preferences.rows(for: app.id, actions: actions)
+        let visibleCount = rows.lazy.filter(\.isVisible).count
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(app.name).font(.title2.bold())
+            Form {
                 Section {
                     Text(L10n.text("Até %@ ações visíveis por aplicativo.", String(AppActionPreferences.visibleLimit)))
                         .font(.caption).foregroundStyle(.secondary)
-                    let visibleCount = rows.lazy.filter(\.isVisible).count
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                         if let action = actions.first(where: { $0.preferenceID == row.id }) {
                             actionRow(app: app, action: action, index: index, count: rows.count,
@@ -615,21 +821,15 @@ struct AppActionSettingsView: View {
                         .disabled(preferences.profiles[app.id] == nil)
                 }
             }
-        }
-        .formStyle(.grouped)
-        .onAppear { refreshApplications() }
-        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in
-            refreshApplications()
-        }
-        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)) { _ in
-            refreshApplications()
-        }
-        .sheet(item: $importTarget) { app in
-            if let pid = app.pid {
-                AppMenuImportView(appID: app.id, name: app.name, pid: pid,
-                                  builtIn: app.builtIn, preferences: preferences)
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button(L10n.text("Concluído")) { editing = false }
+                    .keyboardShortcut(.defaultAction)
             }
         }
+        .padding(20)
+        .frame(width: 520, height: 480)
     }
 
     private func availableActions(for app: Application) -> [AppScriptAction] {
@@ -712,10 +912,21 @@ struct AppActionSettingsView: View {
             guard app != nil || !preferences.availableActions(for: id, builtIn: builtIn).isEmpty else { return nil }
             let name = app?.localizedName ?? Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                 ?? url.deletingPathExtension().lastPathComponent
-            return Application(id: id, name: name, builtIn: builtIn, pid: app?.processIdentifier)
+            let icon = app?.icon ?? workspace.icon(forFile: url.path)
+            return Application(id: id, name: name, icon: icon, builtIn: builtIn, pid: app?.processIdentifier)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         if !applications.contains(where: { $0.id == selectedID }) {
-            selectedID = applications.first?.id ?? ""
+            selectedID = nil
+            editing = false
+        }
+        updatePage()
+    }
+
+    private func updatePage() {
+        if let index = openApps.firstIndex(where: { $0.id == selectedID }) {
+            page = index / capacity.rawValue
+        } else {
+            page = min(page, pageCount - 1)
         }
     }
 }
@@ -743,9 +954,15 @@ private struct AppMenuImportView: View {
     }
 
     var body: some View {
+        let actionCount = preferences.apply(to: builtIn, appID: appID).count
         VStack(alignment: .leading, spacing: 12) {
             Text(name).font(.title2.bold())
-            Text(L10n.text("Importar do menu…")).foregroundStyle(.secondary)
+            HStack {
+                Text(L10n.text("Importar do menu…"))
+                Spacer()
+                Text(L10n.text("Ações na roda: %@ de %@", String(actionCount), String(AppActionPreferences.visibleLimit)))
+            }
+            .foregroundStyle(.secondary)
             TextField(L10n.text("Buscar comando do menu"), text: $search)
                 .textFieldStyle(.roundedBorder)
                 .disabled(menuTitles.isEmpty)
@@ -798,7 +1015,7 @@ private struct AppMenuImportView: View {
                         Button(L10n.text(added ? "Adicionado" : "Adicionar")) {
                             preferences.importCommand(command, for: appID, builtIn: builtIn)
                         }
-                        .disabled(added)
+                        .disabled(added || actionCount >= AppActionPreferences.visibleLimit)
                     }
                 }
             }

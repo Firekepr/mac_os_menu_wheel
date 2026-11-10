@@ -302,6 +302,52 @@ private struct OuterActionSector: Shape {
     }
 }
 
+struct AppActionSector: View {
+    let diameter: CGFloat
+    let index: Int
+    let count: Int
+    let part: Int
+    let parts: Int
+    let action: AppScriptAction?
+    let theme: WheelTheme
+    var highlighted = false
+
+    var body: some View {
+        let side = WheelActionGeometry.outerSize(diameter: diameter)
+        let angle = WheelActionGeometry.actionAngle(index: index, count: count,
+                                                     part: part, parts: parts) * .pi / 180
+        let radius = WheelActionGeometry.actionRadius(diameter: diameter)
+        let shape = OuterActionSector(diameter: diameter, index: index, count: count,
+                                      part: part, parts: parts)
+        let accent: Color = action == AppScriptActions.authorizeMailBadge ? .orange : (action == nil ? .red : .accentColor)
+        ZStack {
+            WheelBackdrop(shape: shape, theme: theme)
+            if action == nil && theme.isAero {
+                shape.fill(Color(red: 0.45, green: 0.06, blue: 0.13)
+                    .opacity(theme == .frutigerAeroGlass
+                             ? (highlighted ? 0.82 : 0.68)
+                             : (highlighted ? 0.95 : 0.80)))
+            } else {
+                shape.fill(accent.opacity(highlighted ? 0.40 : 0.08))
+            }
+            shape.stroke(accent.opacity(highlighted ? 0.9 : 0.35), lineWidth: theme == .highContrast ? 2 : 1)
+                .shadow(color: accent.opacity(theme == .glass && highlighted ? 0.4 : 0), radius: 8)
+            VStack(spacing: 3) {
+                Image(systemName: action?.symbol ?? "xmark.circle.fill")
+                    .font(.system(size: parts == 1 ? 18 : 14 * diameter / WheelGeometry.size,
+                                  weight: .semibold))
+                if parts == 1 {
+                    Text(action?.displayTitle ?? L10n.text("Fechar"))
+                        .font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                }
+            }
+            .foregroundStyle(theme == .highContrast || theme.isAero || highlighted ? Color.white : accent)
+            .offset(x: cos(angle) * radius, y: sin(angle) * radius)
+        }
+        .frame(width: side, height: side)
+    }
+}
+
 struct WheelWithActions: View {
     @ObservedObject var model: RunningApps
     @ObservedObject var interaction: WheelInteraction
@@ -423,38 +469,10 @@ struct WheelWithActions: View {
                 ForEach(actions.indices, id: \.self) { part in
                     let action = actions[part]
                     let highlighted = action.map { $0 == interaction.hoveredScriptAction } ?? interaction.isCloseHovered
-                    let angle = WheelActionGeometry.actionAngle(index: index, count: model.slots.count,
-                                                                 part: part, parts: actions.count) * .pi / 180
-                    let radius = WheelActionGeometry.actionRadius(diameter: diameter)
-                    let shape = OuterActionSector(diameter: diameter, index: index, count: model.slots.count,
-                                                  part: part, parts: actions.count)
-                    let accent: Color = action == AppScriptActions.authorizeMailBadge ? .orange : (action == nil ? .red : .accentColor)
                     let label = action.map(\.displayTitle) ?? L10n.text("Fechar %@", target.name)
-                    ZStack {
-                        WheelBackdrop(shape: shape, theme: theme)
-                        if action == nil && theme.isAero {
-                            shape.fill(Color(red: 0.45, green: 0.06, blue: 0.13)
-                                .opacity(theme == .frutigerAeroGlass
-                                         ? (highlighted ? 0.82 : 0.68)
-                                         : (highlighted ? 0.95 : 0.80)))
-                        } else {
-                            shape.fill(accent.opacity(highlighted ? 0.40 : 0.08))
-                        }
-                        shape.stroke(accent.opacity(highlighted ? 0.9 : 0.35), lineWidth: theme == .highContrast ? 2 : 1)
-                            .shadow(color: accent.opacity(theme == .glass && highlighted ? 0.4 : 0), radius: 8)
-                        VStack(spacing: 3) {
-                            Image(systemName: action?.symbol ?? "xmark.circle.fill")
-                                .font(.system(size: actions.count == 1 ? 18 : 14 * diameter / WheelGeometry.size,
-                                              weight: .semibold))
-                            if actions.count == 1 {
-                                Text(action?.displayTitle ?? L10n.text("Fechar"))
-                                    .font(.system(size: 11, weight: .semibold)).lineLimit(1)
-                            }
-                        }
-                        .foregroundStyle(theme == .highContrast || theme.isAero || highlighted ? Color.white : accent)
-                        .offset(x: cos(angle) * radius, y: sin(angle) * radius)
-                    }
-                    .frame(width: side, height: side)
+                    AppActionSector(diameter: diameter, index: index, count: model.slots.count,
+                                    part: part, parts: actions.count, action: action,
+                                    theme: theme, highlighted: highlighted)
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(label)

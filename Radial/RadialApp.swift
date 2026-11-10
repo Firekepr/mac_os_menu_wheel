@@ -35,7 +35,7 @@ struct RadialApp: App {
 }
 
 private struct AppSettingsView: View {
-    let preferences: WheelPreferences
+    @ObservedObject var preferences: WheelPreferences
     let favorites: AppFavorites
     @State private var selectedTab = 0
 
@@ -47,7 +47,7 @@ private struct AppSettingsView: View {
             AppFavoritesView(favorites: favorites)
                 .tabItem { Label(L10n.text("Favoritos"), systemImage: "star") }
                 .tag(1)
-            AppActionSettingsView(preferences: preferences.appActions)
+            AppActionSettingsView(preferences: preferences.appActions, capacity: preferences.wheelCapacity, theme: preferences.theme)
                 .tabItem { Label(L10n.text("Ações por aplicativo"), systemImage: "bolt.circle") }
                 .tag(2)
         }

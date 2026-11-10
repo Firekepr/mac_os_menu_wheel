@@ -252,7 +252,7 @@ struct WheelView: View {
                 }
 
                 if let app {
-                    Image(nsImage: app.icon)
+                    Image(nsImage: model.icon(for: app))
                         .resizable()
                         .interpolation(.high)
                         .frame(width: 52, height: 52)

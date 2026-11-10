@@ -190,6 +190,8 @@ final class RunningApps: ObservableObject {
     @Published private(set) var slots: [WheelSlot] = []
     var apps: [WheelApp] { slots.compactMap(\.app) }
     private var pages: [[WheelSlot]] = []
+    private var iconsByAppID: [String: NSImage] = [:]
+    private var actionsByProcess: [pid_t: (application: NSRunningApplication, actions: [AppScriptAction])] = [:]
     private var capacity: WheelCapacity
     private(set) var pageIndex = 0
     private(set) var pageTurnDirection = 1
@@ -227,15 +229,28 @@ final class RunningApps: ObservableObject {
 
     func refresh(capacity: WheelCapacity? = nil) {
         if let capacity { self.capacity = capacity }
+        iconsByAppID.removeAll(keepingCapacity: true)
         let running = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             .sorted {
                 ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending
             }
         var seen = Set<String>()
-        let entries = running.map {
-            WheelApp(application: $0, scriptActions: AppScriptActions.discover(in: $0))
-        }.filter { seen.insert($0.id).inserted }
+        var currentActions: [pid_t: (application: NSRunningApplication, actions: [AppScriptAction])] = [:]
+        let entries = running.compactMap { application -> WheelApp? in
+            var entry = WheelApp(application: application)
+            guard seen.insert(entry.id).inserted else { return nil }
+            let pid = application.processIdentifier
+            if let cached = actionsByProcess[pid], cached.application == application,
+               cached.application.launchDate == application.launchDate, !cached.application.isTerminated {
+                entry.scriptActions = cached.actions
+            } else {
+                entry.scriptActions = AppScriptActions.discover(in: application)
+            }
+            currentActions[pid] = (application, entry.scriptActions)
+            return entry
+        }
+        actionsByProcess = currentActions
         let ids = Set(entries.map(\.id))
         if runningApplicationIDs != ids { runningApplicationIDs = ids }
         let pinned = Dictionary(uniqueKeysWithValues: favorites.apps.map { ($0.position, $0.id) })
@@ -270,6 +285,13 @@ final class RunningApps: ObservableObject {
     }
 
     func isRunning(_ app: WheelApp) -> Bool { runningApplicationIDs.contains(app.id) }
+
+    func icon(for app: WheelApp) -> NSImage {
+        if let icon = iconsByAppID[app.id] { return icon }
+        let icon = app.icon
+        iconsByAppID[app.id] = icon
+        return icon
+    }
 
     func perform(_ action: AppScriptAction, on app: WheelApp, completion: ((String?) -> Void)? = nil) {
         let authorizingBadge = action == AppScriptActions.authorizeMailBadge

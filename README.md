@@ -10,11 +10,14 @@ macOS 26+ · Apple Silicon & Intel
 
 ## English
 
-Radial is a native macOS app switcher that puts your apps in a wheel around your pointer. Hold the right mouse button, point at an app, and release to switch to it. You can also set a keyboard shortcut to open the wheel.
+Radial is a native macOS app switcher that puts your apps and windows within a gesture of your pointer. Hold the right mouse button, point at an app, and release to switch to it.
 
-- **Favorites.** Pin apps to fixed directions so you can reach them with the same motion every time. You can keep a favorite on the wheel even when it's closed.
-- **Window and app actions.** Pick a specific window, quit an app, or run a configured script from the wheel.
-- **Controls that fit your workflow.** Customize the mouse button and timing, and set per-app exceptions where you want the original mouse behavior.
+- **Custom layout.** Choose 4, 8, or 12 slots per page and scroll while the wheel is open to browse more apps. Resize the wheel and choose from five themes, including Liquid Glass and High Contrast.
+- **Favorites.** Pin apps to fixed directions so you can reach them with the same motion every time. Keep favorites on the wheel even when closed, or show them only while they're running.
+- **RAM at a glance.** Enable the optional memory indicator to see an estimate of a running app's RAM usage in the center of the wheel as you point at it.
+- **Mouse and keyboard controls.** Pick your mouse button, record a global keyboard shortcut, and tune how long it takes to open the wheel or reveal actions. Add exceptions for apps where you want to keep the original mouse behavior.
+- **Window and app actions.** Bring a specific window to the front, close a window, or quit an app. Supported apps offer extra actions, such as playback controls for Spotify and Apple Music or Build, Run, and Test for Xcode.
+- **Ready at login.** Optionally start Radial in the background when you sign in to macOS.
 
 <img width="692" height="388" alt="Demonstration GIF" src="https://github.com/user-attachments/assets/206372b7-0fdc-42af-a62e-8ad9d270a8b1" />
 
@@ -22,11 +25,14 @@ Extract the ZIP, move `Radial.app` to **Applications**, and open it. To use the 
 
 ## Português
 
-O Radial é um alternador de apps nativo do macOS que coloca seus aplicativos em uma roda ao redor do cursor. Segure o botão direito do mouse, aponte para um app e solte para alternar. Você também pode configurar um atalho de teclado para abrir a roda.
+O Radial é um alternador nativo do macOS que coloca seus apps e janelas a um gesto de distância. Segure o botão direito do mouse, aponte para um app na roda ao redor do cursor e solte para alternar.
 
-- **Favoritos.** Fixe apps em direções específicas para acessá-los sempre com o mesmo movimento. Um favorito pode aparecer na roda mesmo quando estiver fechado.
-- **Ações de apps e janelas.** Escolha uma janela específica, encerre um app ou execute um script configurado direto pela roda.
-- **Controles personalizáveis.** Ajuste o botão do mouse e o tempo de abertura, e defina exceções para apps em que você quer preservar o comportamento original do mouse.
+- **Layout personalizável.** Escolha 4, 8 ou 12 posições por página e role com a roda aberta para ver mais apps. Ajuste o tamanho da roda e escolha entre cinco temas, incluindo Liquid Glass e Alto Contraste.
+- **Favoritos.** Fixe apps em direções específicas para acessá-los sempre com o mesmo movimento. Mantenha seus favoritos na roda mesmo quando fechados ou exiba-os só enquanto estiverem abertos.
+- **Consumo de RAM.** Ative o indicador opcional para ver, no centro da roda, uma estimativa da memória usada pelo app em execução para o qual você está apontando.
+- **Controles de mouse e teclado.** Escolha o botão do mouse, grave um atalho global de teclado e ajuste quanto tempo a roda leva para abrir ou revelar ações. Defina exceções para apps em que você quer manter o comportamento original do mouse.
+- **Ações de apps e janelas.** Traga uma janela específica para frente, feche uma janela ou encerre um app. Apps compatíveis oferecem ações extras, como controles de reprodução para Spotify e Música ou Compilar, Executar e Testar para Xcode.
+- **Inicialização automática.** Configure o Radial para abrir em segundo plano ao iniciar sessão no macOS.
 
 <img width="692" height="388" alt="Demonstration GIF" src="https://github.com/user-attachments/assets/206372b7-0fdc-42af-a62e-8ad9d270a8b1" />
 

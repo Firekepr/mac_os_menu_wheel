@@ -9,7 +9,8 @@ struct ContentView: View {
 
     init(preferences: WheelPreferences, favorites: AppFavorites? = nil) {
         self.preferences = preferences
-        _model = StateObject(wrappedValue: RunningApps(favorites: favorites, capacity: preferences.wheelCapacity))
+        _model = StateObject(wrappedValue: RunningApps(favorites: favorites, capacity: preferences.wheelCapacity,
+                                                         actionPreferences: preferences.appActions))
     }
 
     private var previewDiameter: CGFloat { min(CGFloat(preferences.wheelDiameter), 280) }

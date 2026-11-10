@@ -47,6 +47,9 @@ private struct AppSettingsView: View {
             AppFavoritesView(favorites: favorites)
                 .tabItem { Label(L10n.text("Favoritos"), systemImage: "star") }
                 .tag(1)
+            AppActionSettingsView(preferences: preferences.appActions)
+                .tabItem { Label(L10n.text("Ações por aplicativo"), systemImage: "bolt.circle") }
+                .tag(2)
         }
         .frame(width: 600, height: selectedTab == 0 ? 640 : 620)
     }

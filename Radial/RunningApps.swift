@@ -7,6 +7,7 @@ struct WheelApp: Identifiable {
     let application: NSRunningApplication?
     var favorite: FavoriteApp? = nil
     var scriptActions: [AppScriptAction] = []
+    var hasPlaybackControls = false
     var id: String { favorite?.id ?? application?.bundleIdentifier ?? application?.bundleURL?.path ?? "pid:\(application?.processIdentifier ?? -1)" }
     var name: String { application?.localizedName ?? favorite?.name ?? L10n.text("Aplicativo") }
     var isQuitProtected: Bool {
@@ -48,7 +49,7 @@ enum WindowAction: Equatable {
         switch self {
         case .open: L10n.text("Abrir")
         case .close: L10n.text("Fechar janela")
-        case .script(let action): L10n.text(action.title)
+        case .script(let action): action.displayTitle
         }
     }
 
@@ -122,8 +123,13 @@ enum AppWindows {
         let isFinder = app.id == AppScriptActions.finderID
         let processes = NSWorkspace.shared.runningApplications.compactMap { application -> (pid_t, [AppScriptAction])? in
             guard !application.isTerminated, WheelApp(application: application).id == app.id else { return nil }
-            let actions = application.processIdentifier == app.application?.processIdentifier
-                ? app.scriptActions : AppScriptActions.discover(in: application)
+            let actions: [AppScriptAction]
+            if application.processIdentifier == app.application?.processIdentifier {
+                actions = app.scriptActions
+            } else {
+                let available = Set(AppScriptActions.discover(in: application).map(\.preferenceID))
+                actions = app.scriptActions.filter { $0.menuCommand != nil || available.contains($0.preferenceID) }
+            }
             return (application.processIdentifier, actions)
         }
         return await withCheckedContinuation { continuation in
@@ -198,14 +204,17 @@ final class RunningApps: ObservableObject {
     private(set) var pageTurnRevision = 0
     var pageCount: Int { pages.count }
     private let favorites: AppFavorites
+    private let actionPreferences: AppActionPreferences
     private var favoritesSubscription: AnyCancellable?
     private var workspaceSubscription: AnyCancellable?
     @Published private(set) var runningApplicationIDs: Set<String> = []
     @Published private(set) var activationError: String?
 
-    init(favorites: AppFavorites? = nil, observesFavorites: Bool = true, capacity: WheelCapacity = .eight) {
+    init(favorites: AppFavorites? = nil, observesFavorites: Bool = true, capacity: WheelCapacity = .eight,
+         actionPreferences: AppActionPreferences? = nil) {
         self.capacity = capacity
         self.favorites = favorites ?? AppFavorites()
+        self.actionPreferences = actionPreferences ?? AppActionPreferences()
         refresh()
         let center = NSWorkspace.shared.notificationCenter
         workspaceSubscription = center.publisher(for: NSWorkspace.didLaunchApplicationNotification)
@@ -220,7 +229,7 @@ final class RunningApps: ObservableObject {
                 if self?.runningApplicationIDs != ids { self?.runningApplicationIDs = ids }
             }
         if observesFavorites {
-            favoritesSubscription = self.favorites.$apps.sink { [weak self] _ in
+            favoritesSubscription = self.favorites.$apps.combineLatest(self.actionPreferences.$profiles).dropFirst().sink { [weak self] _, _ in
                 // Published sends before storage changes. Refresh the preview on the next turn.
                 DispatchQueue.main.async { self?.refresh() }
             }
@@ -241,13 +250,16 @@ final class RunningApps: ObservableObject {
             var entry = WheelApp(application: application)
             guard seen.insert(entry.id).inserted else { return nil }
             let pid = application.processIdentifier
+            let availableActions: [AppScriptAction]
             if let cached = actionsByProcess[pid], cached.application == application,
                cached.application.launchDate == application.launchDate, !cached.application.isTerminated {
-                entry.scriptActions = cached.actions
+                availableActions = cached.actions
             } else {
-                entry.scriptActions = AppScriptActions.discover(in: application)
+                availableActions = AppScriptActions.discover(in: application)
             }
-            currentActions[pid] = (application, entry.scriptActions)
+            currentActions[pid] = (application, availableActions)
+            entry.hasPlaybackControls = !availableActions.isEmpty && AppScriptActions.supportsPlaybackState(application.bundleIdentifier)
+            entry.scriptActions = actionPreferences.apply(to: availableActions, appID: entry.id)
             return entry
         }
         actionsByProcess = currentActions
@@ -307,7 +319,9 @@ final class RunningApps: ObservableObject {
         Task {
             let message: String?
             do {
-                if let folder = action.finderFolder, let finderURL = running.bundleURL {
+                if let command = action.menuCommand {
+                    try await AppMenuCommands.perform(command, pid: pid, appID: app.id)
+                } else if let folder = action.finderFolder, let finderURL = running.bundleURL {
                     let directory: URL
                     if folder == .userDirectory {
                         directory = FileManager.default.homeDirectoryForCurrentUser
@@ -334,7 +348,7 @@ final class RunningApps: ObservableObject {
                     }
                     message = L10n.text("Autorize o Radial a controlar %@ em Privacidade e Segurança → Automação.", app.name)
                 } else {
-                    message = L10n.text("Não foi possível executar %@ em %@: %@.", L10n.text(action.title), app.name, error.localizedDescription)
+                    message = L10n.text("Não foi possível executar %@ em %@: %@.", action.displayTitle, app.name, error.localizedDescription)
                 }
             }
             activationError = message
@@ -368,7 +382,7 @@ final class RunningApps: ObservableObject {
     func perform(_ action: WindowAction, on window: WheelWindow, completion: ((String?) -> Void)? = nil) {
         activationError = nil
         Task {
-            if case .script(let command) = action, !command.targetsActiveWorkspace {
+            if case .script(let command) = action, !command.targetsActiveWorkspace, command.menuCommand == nil {
                 let running = NSRunningApplication(processIdentifier: window.pid)
                 perform(command, on: WheelApp(application: running, scriptActions: window.scriptActions), completion: completion)
                 return

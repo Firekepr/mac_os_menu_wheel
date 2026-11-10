@@ -159,7 +159,7 @@ struct WheelView: View {
         return model.apps.compactMap { app in
             guard model.isRunning(app), let application = app.application, !application.isTerminated else { return nil }
             let isBrave = application.bundleIdentifier == AppWindows.braveBundleIdentifier
-            guard isBrave || (!app.scriptActions.isEmpty && AppScriptActions.supportsPlaybackState(application.bundleIdentifier))
+            guard isBrave || app.hasPlaybackControls
             else { return nil }
             return PlaybackTarget(pid: application.processIdentifier, isBrave: isBrave)
         }

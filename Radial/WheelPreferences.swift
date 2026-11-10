@@ -33,6 +33,7 @@ final class WheelPreferences: ObservableObject {
     nonisolated static let defaultActionDelay = 0.65
     static let actionDelayRange = 0.15...1.5
     private let defaults: UserDefaults
+    let appActions: AppActionPreferences
     @Published var theme: WheelTheme {
         didSet { defaults.set(theme.rawValue, forKey: "wheelTheme") }
     }
@@ -97,6 +98,7 @@ final class WheelPreferences: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        appActions = AppActionPreferences(defaults: defaults)
         wheelCapacity = WheelCapacity(rawValue: defaults.integer(forKey: "wheelCapacity")) ?? .eight
         theme = defaults.string(forKey: "wheelTheme").flatMap(WheelTheme.init(rawValue:)) ?? .glass
         keyboardShortcut = defaults.data(forKey: "wheelKeyboardShortcut")

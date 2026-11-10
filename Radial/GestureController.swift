@@ -76,8 +76,9 @@ final class GestureController: ObservableObject {
         self.postEvent = postEvent
         let favorites = AppFavorites(defaults: defaults)
         self.favorites = favorites
-        self.model = RunningApps(favorites: favorites, observesFavorites: false)
-        self.preferences = WheelPreferences(defaults: defaults)
+        let preferences = WheelPreferences(defaults: defaults)
+        self.preferences = preferences
+        self.model = RunningApps(favorites: favorites, observesFavorites: false, actionPreferences: preferences.appActions)
         self.exceptions = AppExceptions(defaults: defaults)
         NotificationCenter.default.addObserver(self, selector: #selector(cancelForEnvironmentChange),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
@@ -449,7 +450,7 @@ final class GestureController: ObservableObject {
         } else if let chosen, let scriptAction {
             DispatchQueue.main.async { [weak self] in
                 self?.model.perform(scriptAction, on: chosen) { [weak self] error in
-                    self?.status = error ?? L10n.text("%@ executado em %@.", L10n.text(scriptAction.title), chosen.name)
+                    self?.status = error ?? L10n.text("%@ executado em %@.", scriptAction.displayTitle, chosen.name)
                 }
             }
         } else if let chosen {

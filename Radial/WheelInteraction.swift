@@ -321,7 +321,7 @@ struct WheelWithActions: View {
             guard let action = interaction.hoveredWindowAction, action != .open else { return nil }
             return action.title
         }
-        if let action = interaction.hoveredScriptAction { return L10n.text(action.title) }
+        if let action = interaction.hoveredScriptAction { return action.displayTitle }
         return interaction.isCloseHovered ? L10n.text("Fechar") : nil
     }
 
@@ -429,7 +429,7 @@ struct WheelWithActions: View {
                     let shape = OuterActionSector(diameter: diameter, index: index, count: model.slots.count,
                                                   part: part, parts: actions.count)
                     let accent: Color = action == AppScriptActions.authorizeMailBadge ? .orange : (action == nil ? .red : .accentColor)
-                    let label = action.map { L10n.text($0.title) } ?? L10n.text("Fechar %@", target.name)
+                    let label = action.map(\.displayTitle) ?? L10n.text("Fechar %@", target.name)
                     ZStack {
                         WheelBackdrop(shape: shape, theme: theme)
                         if action == nil && theme.isAero {
@@ -447,7 +447,8 @@ struct WheelWithActions: View {
                                 .font(.system(size: actions.count == 1 ? 18 : 14 * diameter / WheelGeometry.size,
                                               weight: .semibold))
                             if actions.count == 1 {
-                                Text(L10n.text("Fechar")).font(.system(size: 11, weight: .semibold))
+                                Text(action?.displayTitle ?? L10n.text("Fechar"))
+                                    .font(.system(size: 11, weight: .semibold)).lineLimit(1)
                             }
                         }
                         .foregroundStyle(theme == .highContrast || theme.isAero || highlighted ? Color.white : accent)

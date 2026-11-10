@@ -13,6 +13,42 @@ MainActor.assumeIsolated {
     precondition(actions.map(\.eventID) == [0x50726576, 0x506C5073, 0x4E657874])
     precondition(actions.allSatisfy { $0.eventClass == 0x73706679 })
     precondition(AppScriptActions.discover(in: dictionary, bundleIdentifier: "other.app").isEmpty)
+    let suite = "Radial.ActionPreferencesChecks.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let preferences = AppActionPreferences(defaults: defaults)
+    let appID = "com.spotify.client"
+    precondition(preferences.apply(to: actions, appID: appID) == actions)
+    var rows = preferences.rows(for: appID, actions: actions)
+    rows[0].isVisible = false
+    rows[2].title = "Minha próxima faixa"
+    rows[2].symbol = "star.fill"
+    rows.swapAt(1, 2)
+    preferences.save(rows, for: appID)
+    let restored = AppActionPreferences(defaults: defaults)
+    let configured = restored.apply(to: actions, appID: appID)
+    precondition(configured.map(\.eventID) == [actions[2].eventID, actions[1].eventID])
+    precondition(configured[0].displayTitle == "Minha próxima faixa" && configured[0].symbol == "star.fill")
+    precondition(restored.apply(to: actions, appID: "com.apple.Music") == actions)
+    restored.reset(appID)
+    precondition(AppActionPreferences(defaults: defaults).apply(to: actions, appID: appID) == actions)
+    let imported = AppMenuCommand(path: ["Arquivo", "Nova janela"])
+    precondition(imported.id != AppMenuCommand(path: ["Arquivo › Nova", "janela"]).id)
+    restored.importCommand(imported, for: appID, builtIn: actions)
+    restored.importCommand(imported, for: appID, builtIn: actions)
+    let menuRestored = AppActionPreferences(defaults: defaults)
+    let mixed = menuRestored.apply(to: actions, appID: appID)
+    precondition(mixed.count == actions.count + 1 && mixed.last?.menuCommand == imported)
+    precondition(mixed.last?.displayTitle == "Nova janela")
+    for index in 1...5 {
+        menuRestored.importCommand(AppMenuCommand(path: ["Arquivo", "Comando \(index)"]),
+                                   for: appID, builtIn: actions)
+    }
+    precondition(menuRestored.apply(to: actions, appID: appID).count == AppActionPreferences.visibleLimit)
+    precondition(menuRestored.availableActions(for: appID, builtIn: actions).count == actions.count + 6)
+    menuRestored.removeCommand(imported, for: appID)
+    precondition(!menuRestored.availableActions(for: appID, builtIn: actions).contains { $0.menuCommand == imported })
+    menuRestored.reset(appID)
     let incompatible = Data("""
         <dictionary><suite>
             <command name="playpause" code="spfyPlPs"><direct-parameter type="text"/></command>

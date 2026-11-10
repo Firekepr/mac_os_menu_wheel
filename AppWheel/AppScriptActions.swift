@@ -7,9 +7,17 @@ struct AppScriptAction: Equatable, Sendable {
     let eventClass: UInt32
     let eventID: UInt32
     var targetsActiveWorkspace = false
+    var finderFolder: FileManager.SearchPathDirectory?
 }
 
 enum AppScriptActions {
+    static let finderID = "com.apple.finder"
+    private static let finderActions = [
+        AppScriptAction(title: "Downloads", symbol: "arrow.down.to.line", eventClass: 0, eventID: 0,
+                        finderFolder: .downloadsDirectory),
+        AppScriptAction(title: "Pasta Pessoal", symbol: "house", eventClass: 0, eventID: 0,
+                        finderFolder: .userDirectory)
+    ]
     static let mailID = "com.apple.mail"
     static let authorizeMailBadge = AppScriptAction(title: "Autorizar badge do Mail", symbol: "exclamationmark.triangle.fill",
                                                     eventClass: AEEventClass(kAECoreSuite), eventID: AEEventID(kAEGetData))
@@ -46,6 +54,7 @@ enum AppScriptActions {
     }
 
     static func discover(in application: NSRunningApplication) -> [AppScriptAction] {
+        if application.bundleIdentifier == finderID { return finderActions }
         guard let identifier = application.bundleIdentifier,
               identifier == xcodeID || identifier == mailID || supportsPlaybackState(identifier),
               let url = application.bundleURL,
@@ -113,6 +122,60 @@ enum AppScriptActions {
             eventQueue.async {
                 continuation.resume(with: Result { try sendEvent(action, to: pid) })
             }
+        }
+    }
+
+    static func navigateFrontFinderWindow(to directory: URL, pid: pid_t) async throws -> Bool {
+        try await withCheckedThrowingContinuation { continuation in
+            eventQueue.async {
+                continuation.resume(with: Result {
+                    guard let window = try firstFolderWindow(pid: pid) else { return false }
+                    guard let target = property(0x66767467, of: window) else { // fvtg
+                        throw NSError(domain: NSOSStatusErrorDomain, code: Int(errAECoercionFail))
+                    }
+
+                    let event = makeEvent(eventClass: AEEventClass(kAECoreSuite), eventID: AEEventID(kAESetData), pid: pid)
+                    event.setParam(target, forKeyword: AEKeyword(keyDirectObject))
+                    let folder = NSAppleEventDescriptor(fileURL: directory)
+                    event.setParam(folder.coerce(toDescriptorType: DescType(typeAlias)) ?? folder,
+                                   forKeyword: AEKeyword(keyAEData))
+                    _ = try checkedReply(to: event)
+                    let activate = makeEvent(eventClass: AEEventClass(kAEMiscStandards),
+                                             eventID: AEEventID(kAEActivate), pid: pid)
+                    _ = try checkedReply(to: activate)
+                    return true
+                })
+            }
+        }
+    }
+
+    private static func firstFolderWindow(pid: pid_t) throws -> NSAppleEventDescriptor? {
+        var index: Int32 = 1
+        while true {
+            let descriptor = NSAppleEventDescriptor.record()
+            descriptor.setDescriptor(NSAppleEventDescriptor(typeCode: 0x62726F77),
+                                     forKeyword: AEKeyword(keyAEDesiredClass)) // brow
+            descriptor.setDescriptor(.null(), forKeyword: AEKeyword(keyAEContainer))
+            descriptor.setDescriptor(NSAppleEventDescriptor(enumCode: OSType(formAbsolutePosition)),
+                                     forKeyword: AEKeyword(keyAEKeyForm))
+            descriptor.setDescriptor(NSAppleEventDescriptor(int32: index), forKeyword: AEKeyword(keyAEKeyData))
+            guard let window = descriptor.coerce(toDescriptorType: DescType(typeObjectSpecifier)),
+                  let closeable = property(0x68636C62, of: window) else { // hclb
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(errAECoercionFail))
+            }
+            let query = makeEvent(eventClass: AEEventClass(kAECoreSuite), eventID: AEEventID(kAEGetData), pid: pid)
+            query.setParam(closeable, forKeyword: AEKeyword(keyDirectObject))
+            do {
+                let reply = try checkedReply(to: query)
+                if reply.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.booleanValue == true {
+                    return window
+                }
+            } catch let error as NSError where error.domain == NSOSStatusErrorDomain
+                && [Int(errAENoSuchObject), Int(errAEIllegalIndex)].contains(error.code) {
+                return nil
+            }
+            // The desktop is a Finder window in the dictionary, but has no close box.
+            index += 1
         }
     }
 

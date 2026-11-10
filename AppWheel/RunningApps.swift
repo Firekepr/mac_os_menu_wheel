@@ -10,7 +10,7 @@ struct WheelApp: Identifiable {
     var id: String { favorite?.id ?? application?.bundleIdentifier ?? application?.bundleURL?.path ?? "pid:\(application?.processIdentifier ?? -1)" }
     var name: String { application?.localizedName ?? favorite?.name ?? L10n.text("Aplicativo") }
     var isQuitProtected: Bool {
-        application?.bundleIdentifier == "com.apple.finder" || favorite?.id == "com.apple.finder"
+        application?.bundleIdentifier == AppScriptActions.finderID || favorite?.id == AppScriptActions.finderID
     }
     var canRequestQuit: Bool { !isQuitProtected && application?.isTerminated == false }
     var url: URL? {
@@ -119,6 +119,7 @@ enum AppWindows {
     @MainActor
     static func list(for app: WheelApp) async -> [WheelWindow] {
         guard AXIsProcessTrusted(), app.application != nil else { return [] }
+        let isFinder = app.id == AppScriptActions.finderID
         let processes = NSWorkspace.shared.runningApplications.compactMap { application -> (pid_t, [AppScriptAction])? in
             guard !application.isTerminated, WheelApp(application: application).id == app.id else { return nil }
             let actions = application.processIdentifier == app.application?.processIdentifier
@@ -141,6 +142,8 @@ enum AppWindows {
                         let closeButton = close.flatMap { value in
                             CFGetTypeID(value) == AXUIElementGetTypeID() ? (value as! AXUIElement) : nil
                         }
+                        // Finder's desktop surface can appear in AXWindows.
+                        if isFinder && closeButton == nil { continue }
                         windows.append(WheelWindow(pid: pid, title: title, element: element,
                                                    closeButton: closeButton, scriptActions: actions))
                     }
@@ -282,7 +285,24 @@ final class RunningApps: ObservableObject {
         Task {
             let message: String?
             do {
-                try await AppScriptActions.send(action, to: pid)
+                if let folder = action.finderFolder, let finderURL = running.bundleURL {
+                    let directory: URL
+                    if folder == .userDirectory {
+                        directory = FileManager.default.homeDirectoryForCurrentUser
+                    } else {
+                        directory = try FileManager.default.url(for: folder, in: .userDomainMask,
+                                                                appropriateFor: nil, create: false)
+                    }
+                    let reusedWindow = folder == .downloadsDirectory
+                        ? try await AppScriptActions.navigateFrontFinderWindow(to: directory, pid: pid)
+                        : false
+                    if !reusedWindow {
+                        _ = try await NSWorkspace.shared.open([directory], withApplicationAt: finderURL,
+                                                              configuration: NSWorkspace.OpenConfiguration())
+                    }
+                } else {
+                    try await AppScriptActions.send(action, to: pid)
+                }
                 message = nil
             } catch let error as NSError {
                 if error.domain == NSOSStatusErrorDomain && error.code == -1743 {

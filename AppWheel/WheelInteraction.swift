@@ -165,7 +165,7 @@ final class WheelInteraction: ObservableObject {
             }
             reset()
         }
-        if let target, target.canRequestQuit, let targetIndex {
+        if let target, let targetIndex {
             let actions = appActions(for: target)
             for (part, action) in actions.enumerated() {
                 if WheelActionGeometry.actionPath(diameter: diameter, index: targetIndex, count: slots.count,
@@ -227,11 +227,12 @@ final class WheelInteraction: ObservableObject {
     func appActions(for app: WheelApp) -> [AppScriptAction?] {
         let authorization: [AppScriptAction?] = mailBadgeNeedsAuthorization && app.id == AppScriptActions.mailID
             ? [AppScriptActions.authorizeMailBadge] : []
-        return authorization + app.scriptActions.map(Optional.some) + [nil]
+        return authorization + app.scriptActions.map(Optional.some) + (app.canRequestQuit ? [nil] : [])
     }
 
     func windowActions(for window: WheelWindow) -> [WindowAction] {
-        mailBadgeNeedsAuthorization ? [.script(AppScriptActions.authorizeMailBadge)] + window.actions : window.actions
+        if closeTargetID == AppScriptActions.finderID { return window.scriptActions.map(WindowAction.script) }
+        return mailBadgeNeedsAuthorization ? [.script(AppScriptActions.authorizeMailBadge)] + window.actions : window.actions
     }
 }
 
@@ -417,7 +418,7 @@ struct WheelWithActions: View {
 
             if let index = targetIndex, interaction.isChoosingWindow {
                 windowSectors(at: index)
-            } else if let index = targetIndex, let target = model.slots[index].app, target.canRequestQuit {
+            } else if let index = targetIndex, let target = model.slots[index].app {
                 let actions = interaction.appActions(for: target)
                 ForEach(actions.indices, id: \.self) { part in
                     let action = actions[part]

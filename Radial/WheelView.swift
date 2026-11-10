@@ -260,11 +260,7 @@ struct WheelView: View {
                         .shadow(color: theme == .minimal ? .clear : .black.opacity(active ? 0.24 : 0.15), radius: active ? 10 : 6, y: active ? 6 : 4)
                         .overlay(alignment: .bottomTrailing) {
                             if app.favorite != nil {
-                                Image(systemName: "star.fill")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .padding(4)
-                                    .background(Color.accentColor, in: Circle())
+                                FavoriteAppBadge()
                             }
                         }
                         .modifier(SelectedIconFloat(isSelected: active && isActive))
@@ -495,6 +491,16 @@ struct WheelView: View {
         }
     }
 
+}
+
+struct FavoriteAppBadge: View {
+    var body: some View {
+        Image(systemName: "star.fill")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(4)
+            .background(Color.accentColor, in: Circle())
+    }
 }
 
 /// A static Dock-style marker; no timers or continuous animations.

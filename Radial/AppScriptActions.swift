@@ -555,7 +555,6 @@ struct AppActionSettingsView: View {
     private struct Application: Identifiable {
         let id: String
         let name: String
-        let icon: NSImage
         let builtIn: [AppScriptAction]
         let pid: pid_t?
     }
@@ -575,19 +574,39 @@ struct AppActionSettingsView: View {
     let capacity: WheelCapacity
     let theme: WheelTheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var applications: [Application] = []
+    @StateObject private var wheelApps: RunningApps
+    @State private var closedApplications: [Application] = []
     @State private var selectedID: String?
     @State private var revealedAppID: String?
     @State private var page = 0
     @State private var importTarget: Application?
     @State private var editing = false
 
-    private var openApps: [Application] { applications.filter { $0.pid != nil } }
-    private var pageCount: Int { max(1, (openApps.count + capacity.rawValue - 1) / capacity.rawValue) }
-    private var pageApps: [Application] {
-        Array(openApps.dropFirst(page * capacity.rawValue).prefix(capacity.rawValue))
+    init(preferences: AppActionPreferences, favorites: AppFavorites, capacity: WheelCapacity, theme: WheelTheme) {
+        self.preferences = preferences
+        self.capacity = capacity
+        self.theme = theme
+        _wheelApps = StateObject(wrappedValue: RunningApps(favorites: favorites, capacity: capacity,
+                                                          actionPreferences: preferences))
     }
-    private var selectedApp: Application? { applications.first { $0.id == selectedID } }
+
+    private var pageCount: Int { wheelApps.pageCount }
+    private var pageSlots: [WheelSlot] {
+        wheelApps.pages.indices.contains(page) ? wheelApps.pages[page] : []
+    }
+    private var layoutIDs: [[String?]] { wheelApps.pages.map { $0.map { $0.app?.id } } }
+    private var hasWheelApps: Bool { wheelApps.pages.contains { $0.contains { $0.app != nil } } }
+    private var selectedWheelApp: WheelApp? {
+        wheelApps.pages.lazy.flatMap { $0 }.first { $0.app?.id == selectedID }?.app
+    }
+    private var selectedApp: Application? {
+        guard let selectedID else { return nil }
+        if let app = selectedWheelApp {
+            let builtIn = app.url.map { AppScriptActions.discover(bundleIdentifier: app.id, bundleURL: $0) } ?? []
+            return Application(id: app.id, name: app.name, builtIn: builtIn, pid: app.application?.processIdentifier)
+        }
+        return closedApplications.first { $0.id == selectedID }
+    }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -606,7 +625,7 @@ struct AppActionSettingsView: View {
                     .multilineTextAlignment(.center)
             }
 
-            if !openApps.isEmpty, selectedApp == nil || selectedApp?.pid != nil {
+            if hasWheelApps, selectedApp == nil || selectedWheelApp != nil {
                 wheel
             } else if selectedApp == nil {
                 Text(L10n.text("Nenhum aplicativo aberto."))
@@ -627,7 +646,7 @@ struct AppActionSettingsView: View {
                             .disabled(page + 1 >= pageCount)
                             .accessibilityLabel(L10n.text("Próxima página"))
                     }
-                    let closedApps = applications.filter { $0.pid == nil }
+                    let closedApps = closedApplications.filter { app in !layoutIDs.contains { $0.contains(app.id) } }
                     if !closedApps.isEmpty {
                         Menu(L10n.text("Apps fechados")) {
                             ForEach(closedApps) { app in
@@ -653,7 +672,8 @@ struct AppActionSettingsView: View {
                 revealedAppID = selectedID
             }
         }
-        .onChange(of: capacity) { _, _ in updatePage() }
+        .onChange(of: capacity) { _, _ in refreshApplications() }
+        .onChange(of: layoutIDs) { _, _ in updatePage() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in
             refreshApplications()
         }
@@ -674,7 +694,7 @@ struct AppActionSettingsView: View {
     private var wheel: some View {
         let diameter: CGFloat = 320
         let radius = diameter * 0.35
-        let focusedIndex = pageApps.firstIndex { $0.id == selectedID }
+        let focusedIndex = pageSlots.first { $0.app != nil && $0.app?.id == selectedID }?.id
         let zoom: CGFloat = focusedIndex == nil || reduceMotion ? 1 : 1.6
         let zoomedDiameter = diameter * zoom
         let outerRadius = WheelActionGeometry.outerSize(diameter: zoomedDiameter) / 2
@@ -684,9 +704,10 @@ struct AppActionSettingsView: View {
 
         return ZStack {
             WheelBackdrop(shape: Circle(), theme: theme)
-            ForEach(0..<capacity.rawValue, id: \.self) { index in
-                let sector = WheelSector(index: index, count: capacity.rawValue)
-                let app = pageApps.indices.contains(index) ? pageApps[index] : nil
+            ForEach(pageSlots) { slot in
+                let index = slot.id
+                let sector = WheelSector(index: index, count: pageSlots.count)
+                let app = slot.app
                 let active = focusedIndex == index
                 Button {
                     selectedID = app?.id
@@ -715,13 +736,23 @@ struct AppActionSettingsView: View {
         .offset(offset)
         .overlay {
             ZStack {
-                ForEach(Array(pageApps.enumerated()), id: \.element.id) { index, app in
-                    Image(nsImage: app.icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: iconSize, height: iconSize)
-                        .offset(sectorOffset(index, radius: radius * zoom))
-                        .opacity(focusedIndex == nil || focusedIndex == index ? 1 : 0.3)
+                ForEach(pageSlots) { slot in
+                    if let app = slot.app {
+                        Image(nsImage: wheelApps.icon(for: app))
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: iconSize, height: iconSize)
+                            .overlay(alignment: .bottomTrailing) {
+                                if app.favorite != nil { FavoriteAppBadge() }
+                            }
+                            .overlay(alignment: .bottom) {
+                                if app.favorite != nil && wheelApps.isRunning(app) {
+                                    RunningAppIndicator().offset(y: 8)
+                                }
+                            }
+                            .offset(sectorOffset(slot.id, radius: radius * zoom))
+                            .opacity(focusedIndex == nil || focusedIndex == slot.id ? 1 : 0.3)
+                    }
                 }
             }
             .offset(offset)
@@ -729,7 +760,7 @@ struct AppActionSettingsView: View {
             .accessibilityHidden(true)
         }
         .overlay {
-            if let index = focusedIndex, let app = selectedApp, revealedAppID == app.id {
+            if let index = focusedIndex, let app = selectedWheelApp, revealedAppID == app.id {
                 actionSectors(for: app, at: index, diameter: zoomedDiameter)
                     .offset(offset)
                     .transition(.opacity)
@@ -741,13 +772,12 @@ struct AppActionSettingsView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: selectedID)
     }
 
-    private func actionSectors(for app: Application, at index: Int, diameter: CGFloat) -> some View {
-        let actions = preferences.apply(to: app.builtIn, appID: app.id).map(Optional.some)
-            + (app.id == AppScriptActions.finderID ? [] : [nil])
+    private func actionSectors(for app: WheelApp, at index: Int, diameter: CGFloat) -> some View {
+        let actions = app.scriptActions.map(Optional.some) + (app.canRequestQuit ? [nil] : [])
         return ZStack {
             ForEach(actions.indices, id: \.self) { part in
                 let action = actions[part]
-                AppActionSector(diameter: diameter, index: index, count: capacity.rawValue,
+                AppActionSector(diameter: diameter, index: index, count: pageSlots.count,
                                 part: part, parts: actions.count, action: action, theme: theme)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(action?.displayTitle ?? L10n.text("Fechar %@", app.name))
@@ -757,7 +787,7 @@ struct AppActionSettingsView: View {
     }
 
     private func sectorOffset(_ index: Int, radius: CGFloat) -> CGSize {
-        let angle = Double(index) * 2 * .pi / Double(capacity.rawValue) - .pi / 2
+        let angle = Double(index) * 2 * .pi / Double(pageSlots.count) - .pi / 2
         return CGSize(width: cos(angle) * radius, height: sin(angle) * radius)
     }
 
@@ -766,7 +796,7 @@ struct AppActionSettingsView: View {
         return VStack(spacing: 12) {
             Text(L10n.text("Ações na roda: %@ de %@", String(actions.count), String(AppActionPreferences.visibleLimit)))
                 .font(.callout).foregroundStyle(.secondary)
-            if app.pid == nil, !actions.isEmpty {
+            if selectedWheelApp == nil, !actions.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     ForEach(actions, id: \.preferenceID) { action in
                         VStack(spacing: 6) {
@@ -898,35 +928,29 @@ struct AppActionSettingsView: View {
     }
 
     private func refreshApplications() {
+        wheelApps.refresh(capacity: capacity)
         let workspace = NSWorkspace.shared
-        let running = workspace.runningApplications.filter {
-            !$0.isTerminated && $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
-        }
-        let ids = Set(AppScriptActions.supportedBundleIDs)
-            .union(running.compactMap(\.bundleIdentifier))
-            .union(preferences.profiles.keys)
-        applications = ids.compactMap { id in
-            let app = running.first { $0.bundleIdentifier == id }
-            guard let url = app?.bundleURL ?? workspace.urlForApplication(withBundleIdentifier: id) else { return nil }
+        let ids = Set(AppScriptActions.supportedBundleIDs).union(preferences.profiles.keys)
+        closedApplications = ids.subtracting(wheelApps.runningApplicationIDs).compactMap { id in
+            guard let url = workspace.urlForApplication(withBundleIdentifier: id) else { return nil }
             let builtIn = AppScriptActions.discover(bundleIdentifier: id, bundleURL: url)
-            guard app != nil || !preferences.availableActions(for: id, builtIn: builtIn).isEmpty else { return nil }
-            let name = app?.localizedName ?? Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            guard !preferences.availableActions(for: id, builtIn: builtIn).isEmpty else { return nil }
+            let name = Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                 ?? url.deletingPathExtension().lastPathComponent
-            let icon = app?.icon ?? workspace.icon(forFile: url.path)
-            return Application(id: id, name: name, icon: icon, builtIn: builtIn, pid: app?.processIdentifier)
+            return Application(id: id, name: name, builtIn: builtIn, pid: nil)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        if !applications.contains(where: { $0.id == selectedID }) {
-            selectedID = nil
-            editing = false
-        }
         updatePage()
     }
 
     private func updatePage() {
-        if let index = openApps.firstIndex(where: { $0.id == selectedID }) {
-            page = index / capacity.rawValue
+        if let selectedID, let index = layoutIDs.firstIndex(where: { $0.contains(selectedID) }) {
+            page = index
         } else {
-            page = min(page, pageCount - 1)
+            page = min(page, max(0, pageCount - 1))
+            if selectedApp == nil {
+                selectedID = nil
+                editing = false
+            }
         }
     }
 }

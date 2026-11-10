@@ -195,7 +195,7 @@ struct WheelSlot: Identifiable {
 final class RunningApps: ObservableObject {
     @Published private(set) var slots: [WheelSlot] = []
     var apps: [WheelApp] { slots.compactMap(\.app) }
-    private var pages: [[WheelSlot]] = []
+    private(set) var pages: [[WheelSlot]] = []
     private var iconsByAppID: [String: NSImage] = [:]
     private var actionsByProcess: [pid_t: (application: NSRunningApplication, actions: [AppScriptAction])] = [:]
     private var capacity: WheelCapacity
@@ -240,7 +240,7 @@ final class RunningApps: ObservableObject {
         if let capacity { self.capacity = capacity }
         iconsByAppID.removeAll(keepingCapacity: true)
         let running = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+            .filter { !$0.isTerminated && $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             .sorted {
                 ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending
             }

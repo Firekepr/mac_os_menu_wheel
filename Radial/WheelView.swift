@@ -534,7 +534,7 @@ private struct CenterOpenArea: Shape {
     }
 }
 
-private struct SelectedIconFloat: ViewModifier {
+struct SelectedIconFloat: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let isSelected: Bool
     @State private var startedAt: Date?

@@ -610,13 +610,12 @@ struct AppActionSettingsView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            if let app = selectedApp {
+            if selectedApp != nil {
                 HStack {
                     Button { selectedID = nil } label: {
                         Label(L10n.text("Voltar para a roda"), systemImage: "chevron.left")
                     }
-                    Spacer()
-                    Text(app.name).font(.headline)
+                    .keyboardShortcut(.cancelAction)
                     Spacer()
                 }
             } else {
@@ -710,7 +709,8 @@ struct AppActionSettingsView: View {
                 let app = slot.app
                 let active = focusedIndex == index
                 Button {
-                    selectedID = app?.id
+                    guard let app else { return }
+                    selectedID = active ? nil : app.id
                 } label: {
                     ZStack {
                         sector.fill(active ? theme.accent.opacity(0.35) : .clear)
@@ -719,10 +719,11 @@ struct AppActionSettingsView: View {
                     .contentShape(sector)
                 }
                 .buttonStyle(.plain)
-                .disabled(app == nil || focusedIndex != nil)
+                .disabled(app == nil)
                 .opacity(focusedIndex == nil || active ? 1 : 0.3)
                 .accessibilityLabel(app?.name ?? "")
-                .accessibilityHidden(app == nil || focusedIndex != nil)
+                .accessibilityHidden(app == nil)
+                .accessibilityAddTraits(active ? .isSelected : [])
                 .help(app?.name ?? "")
             }
             if focusedIndex == nil {
@@ -745,6 +746,7 @@ struct AppActionSettingsView: View {
                             .overlay(alignment: .bottomTrailing) {
                                 if app.favorite != nil { FavoriteAppBadge() }
                             }
+                            .modifier(SelectedIconFloat(isSelected: focusedIndex == slot.id))
                             .overlay(alignment: .bottom) {
                                 if app.favorite != nil && wheelApps.isRunning(app) {
                                     RunningAppIndicator().offset(y: 8)
@@ -763,12 +765,13 @@ struct AppActionSettingsView: View {
             if let index = focusedIndex, let app = selectedWheelApp, revealedAppID == app.id {
                 actionSectors(for: app, at: index, diameter: zoomedDiameter)
                     .offset(offset)
-                    .transition(.opacity)
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
             }
         }
         .frame(maxWidth: .infinity)
         .frame(height: focusedIndex == nil ? diameter : 360)
         .clipped()
+        .contentShape(Rectangle())
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: selectedID)
     }
 
@@ -794,8 +797,11 @@ struct AppActionSettingsView: View {
     private func actionPreview(for app: Application) -> some View {
         let actions = preferences.apply(to: app.builtIn, appID: app.id)
         return VStack(spacing: 12) {
-            Text(L10n.text("Ações na roda: %@ de %@", String(actions.count), String(AppActionPreferences.visibleLimit)))
-                .font(.callout).foregroundStyle(.secondary)
+            VStack(spacing: 4) {
+                Text(app.name).font(.headline)
+                Text(L10n.text("Ações na roda: %@ de %@", String(actions.count), String(AppActionPreferences.visibleLimit)))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             if selectedWheelApp == nil, !actions.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     ForEach(actions, id: \.preferenceID) { action in

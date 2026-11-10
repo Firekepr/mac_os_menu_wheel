@@ -125,6 +125,7 @@ struct WheelView: View {
     var selectedWindowTitle: String?
     var isOpenMainWindowHovered = false
     var isActive = true
+    var showsMemoryUsage = false
     var theme: WheelTheme = .glass
     var isMainWindowOpen = false
     @Environment(\.colorScheme) private var colorScheme
@@ -132,14 +133,35 @@ struct WheelView: View {
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
     @State private var playingPIDs: Set<pid_t> = []
+    @State private var mailUnread: Int?
+    @State private var unreadMailPID: pid_t?
 
-    private var playbackPIDs: [pid_t] {
+    private var mailPID: pid_t? {
+        guard isActive,
+              let mail = model.apps.first(where: { $0.id == AppScriptActions.mailID }),
+              model.isRunning(mail), let application = mail.application, !application.isTerminated else { return nil }
+        return application.processIdentifier
+    }
+
+    private func unreadCount(for app: WheelApp) -> Int? {
+        guard app.id == AppScriptActions.mailID, let pid = mailPID, pid == unreadMailPID,
+              let mailUnread, mailUnread > 0 else { return nil }
+        return mailUnread
+    }
+
+    private struct PlaybackTarget: Equatable {
+        let pid: pid_t
+        let isBrave: Bool
+    }
+
+    private var playbackTargets: [PlaybackTarget] {
         guard isActive else { return [] }
         return model.apps.compactMap { app in
-            guard !app.scriptActions.isEmpty, model.isRunning(app),
-                  let application = app.application, !application.isTerminated,
-                  AppScriptActions.supportsPlaybackState(application.bundleIdentifier) else { return nil }
-            return application.processIdentifier
+            guard model.isRunning(app), let application = app.application, !application.isTerminated else { return nil }
+            let isBrave = application.bundleIdentifier == AppWindows.braveBundleIdentifier
+            guard isBrave || (!app.scriptActions.isEmpty && AppScriptActions.supportsPlaybackState(application.bundleIdentifier))
+            else { return nil }
+            return PlaybackTarget(pid: application.processIdentifier, isBrave: isBrave)
         }
     }
 
@@ -161,15 +183,15 @@ struct WheelView: View {
         model.apps.first { $0.id == selectedID }
     }
 
-    private var selectedPID: pid_t? {
-        guard isActive else { return nil }
+    private var memoryTargetPID: pid_t? {
+        guard isActive, showsMemoryUsage else { return nil }
         guard let application = selected?.application, !application.isTerminated else { return nil }
         return application.processIdentifier
     }
 
     private var memoryLabel: String? {
-        guard selectedPID != nil else { return nil }
-        guard memoryPID == selectedPID else { return L10n.text("RAM: consultando…") }
+        guard memoryTargetPID != nil else { return nil }
+        guard memoryPID == memoryTargetPID else { return L10n.text("RAM: consultando…") }
         if let memory { return "RAM ≈ \(memory.formatted)" }
         return isLoadingMemory ? L10n.text("RAM: consultando…") : L10n.text("RAM indisponível")
     }
@@ -255,12 +277,23 @@ struct WheelView: View {
 
                     if isPlaying(app) {
                         // Keep the marker next to the icon, outside its floating animation.
-                        Image(systemName: "play.fill")
+                        Image(systemName: app.id == AppWindows.braveBundleIdentifier ? "speaker.wave.2.fill" : "play.fill")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 17, height: 17)
                             .background(Color(red: 0.08, green: 0.43, blue: 0.28), in: Circle())
                             .overlay { Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1) }
+                            .offset(x: cos(angle) * iconRadius + 25, y: sin(angle) * iconRadius - 25)
+                            .allowsHitTesting(false)
+                    }
+                    if let unread = unreadCount(for: app) {
+                        Text(unread > 99 ? "99+" : unread.formatted())
+                            .font(.system(size: 9, weight: .bold).monospacedDigit())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .frame(minWidth: 17, minHeight: 17)
+                            .background(Color.red, in: Capsule())
+                            .overlay { Capsule().strokeBorder(.white.opacity(0.7), lineWidth: 1) }
                             .offset(x: cos(angle) * iconRadius + 25, y: sin(angle) * iconRadius - 25)
                             .allowsHitTesting(false)
                     }
@@ -384,17 +417,24 @@ struct WheelView: View {
         .accessibilityLabel(L10n.text("Roda de aplicativos"))
         .accessibilityValue([selected?.name ?? L10n.text("Nenhum aplicativo selecionado"),
                              selectedWindowTitle, selectedActionTitle,
+                             selected.flatMap { unreadCount(for: $0) }.map { L10n.text("Não lidos: %@", $0.formatted()) },
                              selected.map { L10n.text(model.isRunning($0) ? "Em execução" : "Fechado") },
-                             selected.flatMap { isPlaying($0) ? L10n.text("Reproduzindo mídia") : nil },
+                             selected.flatMap { app in
+                                 guard isPlaying(app) else { return nil }
+                                 return L10n.text(app.id == AppWindows.braveBundleIdentifier ? "Reproduzindo áudio" : "Reproduzindo mídia")
+                             },
                              memoryLabel, pageLabel].compactMap { $0 }.joined(separator: ", "))
-        .task(id: playbackPIDs) {
-            let pids = playbackPIDs
-            let visiblePlayingPIDs = playingPIDs.intersection(pids)
+        .task(id: playbackTargets) {
+            let targets = playbackTargets
+            let visiblePlayingPIDs = playingPIDs.intersection(targets.map(\.pid))
             if visiblePlayingPIDs != playingPIDs { playingPIDs = visiblePlayingPIDs }
-            guard !pids.isEmpty else { return }
+            guard !targets.isEmpty else { return }
             while !Task.isCancelled {
-                for pid in pids {
-                    let playing = await AppScriptActions.isPlaying(pid: pid)
+                for target in targets {
+                    let pid = target.pid
+                    let playing = target.isBrave
+                        ? await AppWindows.braveHasAudibleTab(pid: pid)
+                        : await AppScriptActions.isPlaying(pid: pid)
                     guard !Task.isCancelled else { return }
                     guard playing != playingPIDs.contains(pid) else { continue }
                     if playing { playingPIDs.insert(pid) }
@@ -404,11 +444,23 @@ struct WheelView: View {
                 catch { return }
             }
         }
-        .task(id: selectedPID) {
+        .task(id: mailPID) {
+            unreadMailPID = mailPID
+            mailUnread = nil
+            guard let pid = mailPID else { return }
+            while !Task.isCancelled {
+                let count = await AppScriptActions.unreadMailCount(pid: pid)
+                guard !Task.isCancelled else { return }
+                if count != mailUnread { mailUnread = count }
+                do { try await Task.sleep(for: .seconds(3)) }
+                catch { return }
+            }
+        }
+        .task(id: memoryTargetPID) {
             memory = nil
-            memoryPID = selectedPID
+            memoryPID = memoryTargetPID
             isLoadingMemory = true
-            guard let pid = selectedPID else { isLoadingMemory = false; return }
+            guard let pid = memoryTargetPID else { isLoadingMemory = false; return }
             let bundlePath = selected?.application?.bundleURL?.path
             // Sweeping across icons should not enumerate every process for
             // every transient selection. Cancellation stops this debounce.

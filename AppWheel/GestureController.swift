@@ -754,7 +754,8 @@ private struct FloatingWheel: View {
 
     var body: some View {
         WheelWithActions(model: model, interaction: selection, isActive: selection.isPresented,
-                         theme: preferences.theme, isMainWindowOpen: selection.isMainWindowOpen)
+                         showsMemoryUsage: preferences.showsMemoryUsage, theme: preferences.theme,
+                         isMainWindowOpen: selection.isMainWindowOpen)
             .preferredColorScheme(.dark)
             .scaleEffect(reduceMotion || selection.isPresented ? 1 : 0.90)
             .opacity(selection.isPresented ? 1 : 0)

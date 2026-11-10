@@ -65,6 +65,10 @@ final class WheelPreferences: ObservableObject {
     @Published var triggerButton: MouseTriggerButton {
         didSet { defaults.set(triggerButton.rawValue, forKey: "wheelTriggerButton") }
     }
+    @Published var showsMemoryUsage: Bool {
+        didSet { defaults.set(showsMemoryUsage, forKey: "wheelShowsMemoryUsage") }
+    }
+
     @Published var showsHoldPreview: Bool {
         didSet { defaults.set(showsHoldPreview, forKey: "wheelShowsHoldPreview") }
     }
@@ -98,6 +102,7 @@ final class WheelPreferences: ObservableObject {
         keyboardShortcut = defaults.data(forKey: "wheelKeyboardShortcut")
             .flatMap { try? JSONDecoder().decode(WheelKeyboardShortcut.self, from: $0) }
             .flatMap { $0.isValid ? $0 : nil }
+        showsMemoryUsage = defaults.bool(forKey: "wheelShowsMemoryUsage")
         showsHoldPreview = defaults.bool(forKey: "wheelShowsHoldPreview")
         language = defaults.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .system
         wheelDiameter = Self.validDiameter((defaults.object(forKey: "wheelDiameter") as? Double) ?? Self.defaultDiameter)
@@ -116,6 +121,7 @@ final class WheelPreferences: ObservableObject {
         holdDelay = Self.defaultDelay
         actionDelay = Self.defaultActionDelay
         triggerButton = .right
+        showsMemoryUsage = false
         showsHoldPreview = false
         keyboardShortcut = nil
         language = .system
@@ -219,6 +225,7 @@ struct WheelPreferencesView: View {
                         Text(String(capacity.rawValue)).tag(capacity)
                     }
                 }
+                Toggle(L10n.text("Mostrar consumo de RAM"), isOn: $preferences.showsMemoryUsage)
                 WheelThemePreview(theme: preferences.theme, capacity: preferences.wheelCapacity)
 
                 VStack(spacing: 10) {

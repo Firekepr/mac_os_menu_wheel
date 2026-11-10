@@ -1,0 +1,4 @@
+// A certificate-backed local identity overrides the development fallback below.
+// Keep Signing.local.xcconfig on this machine; it must not contain private keys.
+CODE_SIGN_IDENTITY = -
+#include? "Signing.local.xcconfig"

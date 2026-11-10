@@ -6,7 +6,7 @@ macOS 26+ · Apple Silicon & Intel
 
 [English](#english) · [Português](#português)
 
-<!-- SCREENSHOT HERE -->
+<img width="752" height="944" alt="Radial Menu" src="https://github.com/user-attachments/assets/46648510-9fd0-4722-8d42-2b6348b2aea8" />
 
 ## English
 
@@ -16,7 +16,7 @@ Radial is a native macOS app switcher that puts your apps in a wheel around your
 - **Window and app actions.** Pick a specific window, quit an app, or run a configured script from the wheel.
 - **Controls that fit your workflow.** Customize the mouse button and timing, and set per-app exceptions where you want the original mouse behavior.
 
-<!-- GIF HERE. -->
+<img width="692" height="388" alt="Demonstration GIF" src="https://github.com/user-attachments/assets/206372b7-0fdc-42af-a62e-8ad9d270a8b1" />
 
 Extract the ZIP, move `Radial.app` to **Applications**, and open it. To use the global mouse gesture, enable it in Radial and grant access under **System Settings → Privacy & Security → Accessibility**. Version 1.0 isn't notarized, so macOS may block it on first launch.
 
@@ -28,7 +28,7 @@ O Radial é um alternador de apps nativo do macOS que coloca seus aplicativos em
 - **Ações de apps e janelas.** Escolha uma janela específica, encerre um app ou execute um script configurado direto pela roda.
 - **Controles personalizáveis.** Ajuste o botão do mouse e o tempo de abertura, e defina exceções para apps em que você quer preservar o comportamento original do mouse.
 
-<!-- GIF HERE. -->
+<img width="692" height="388" alt="Demonstration GIF" src="https://github.com/user-attachments/assets/206372b7-0fdc-42af-a62e-8ad9d270a8b1" />
 
 Extraia o ZIP, mova o `Radial.app` para **Aplicativos** e abra o app. Para usar o gesto global do mouse, ative-o no Radial e conceda acesso em **Ajustes do Sistema → Privacidade e Segurança → Acessibilidade**. A versão 1.0 ainda não foi notarizada pela Apple, então o macOS pode bloquear a primeira abertura.
 

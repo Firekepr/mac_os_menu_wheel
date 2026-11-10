@@ -8,6 +8,8 @@ macOS 26+ · Apple Silicon & Intel
 
 <img width="752" height="944" alt="Radial Menu" src="https://github.com/user-attachments/assets/46648510-9fd0-4722-8d42-2b6348b2aea8" />
 
+<img width="460" height="584" alt="Style Gif" src="https://github.com/user-attachments/assets/202f115e-64e8-442b-9d2d-6d081f7fd396" />
+
 ## English
 
 Radial is a native macOS app switcher that puts your apps and windows within a gesture of your pointer. Hold the right mouse button, point at an app, and release to switch to it.

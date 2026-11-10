@@ -176,7 +176,7 @@ struct WheelView: View {
     }
 
     private var mainWindowActionTitle: String {
-        L10n.text(isMainWindowOpen ? "Fechar janela do AppWheel" : "Abrir AppWheel")
+        L10n.text(isMainWindowOpen ? "Fechar janela do Radial" : "Abrir Radial")
     }
 
     private var selected: WheelApp? {
@@ -490,7 +490,7 @@ struct WheelView: View {
                 }
             }
             Button(mainWindowActionTitle) {
-                NotificationCenter.default.post(name: .appWheelToggleMainWindow, object: nil)
+                NotificationCenter.default.post(name: .radialToggleMainWindow, object: nil)
             }
         }
     }

@@ -21,7 +21,7 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 18) {
             VStack(spacing: 8) {
-                Text("AppWheel")
+                Text("Radial")
                     .font(.system(size: 30, weight: .semibold, design: .rounded))
                 Text(L10n.text("Seus aplicativos, a um gesto de distância."))
                     .foregroundStyle(.secondary)

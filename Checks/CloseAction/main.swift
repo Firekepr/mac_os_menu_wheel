@@ -48,7 +48,7 @@ MainActor.assumeIsolated {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
     precondition(state.closeTargetID == nil, "Dismissal left a dwell timer alive")
 
-    let suite = "AppWheel.CloseChecks.\(UUID().uuidString)"
+    let suite = "Radial.CloseChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = RunningApps(favorites: AppFavorites(defaults: defaults), observesFavorites: false)

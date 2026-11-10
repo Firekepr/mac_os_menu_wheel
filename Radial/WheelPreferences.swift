@@ -187,7 +187,7 @@ struct WheelPreferencesView: View {
                     get: { launchAtLogin.isRequested },
                     set: { launchAtLogin.setEnabled($0) }
                 ))
-                Text(L10n.text("Abrir o AppWheel em segundo plano ao iniciar sessão no macOS."))
+                Text(L10n.text("Abrir o Radial em segundo plano ao iniciar sessão no macOS."))
                     .font(.caption).foregroundStyle(.secondary)
                 if launchAtLogin.status == .requiresApproval {
                     Text(L10n.text("Aguardando sua autorização nos Itens de Início do macOS."))
@@ -211,7 +211,7 @@ struct WheelPreferencesView: View {
                         Text(language.title).tag(language)
                     }
                 }
-                Text(L10n.text("Encerre e abra o AppWheel para aplicar a mudança de idioma."))
+                Text(L10n.text("Encerre e abra o Radial para aplicar a mudança de idioma."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section(L10n.text("Aparência")) {
@@ -282,7 +282,7 @@ struct WheelPreferencesView: View {
             restartError = nil
             showsRestartDialog = true
         }
-        .alert(L10n.text(restartError == nil ? "Reiniciar AppWheel?" : "Não foi possível reiniciar"),
+        .alert(L10n.text(restartError == nil ? "Reiniciar Radial?" : "Não foi possível reiniciar"),
                isPresented: $showsRestartDialog) {
             if restartError != nil {
                 Button(L10n.text("OK"), role: .cancel) { restartError = nil }
@@ -302,7 +302,7 @@ struct WheelPreferencesView: View {
                 Button(L10n.text("Depois"), role: .cancel) {}
             }
         } message: {
-            Text(restartError ?? L10n.text("O AppWheel precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas."))
+            Text(restartError ?? L10n.text("O Radial precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas."))
         }
     }
 }

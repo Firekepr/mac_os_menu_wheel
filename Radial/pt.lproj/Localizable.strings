@@ -1,4 +1,4 @@
-// AppWheel interface translations. %@ placeholders preserve app names and values.
+// Radial interface translations. %@ placeholders preserve app names and values.
 " Alguns processos não puderam ser consultados." = " Alguns processos não puderam ser consultados.";
 " Centro superior ou Esc para cancelar." = " Centro superior ou Esc para cancelar.";
 "%@ de %@ aplicativos abertos na roda." = "%@ de %@ aplicativos abertos na roda.";
@@ -9,7 +9,7 @@
 "Abaixo à esquerda" = "Abaixo à esquerda";
 "Abrir" = "Abrir";
 "Abrir %@" = "Abrir %@";
-"Abrir AppWheel" = "Abrir AppWheel";
+"Abrir Radial" = "Abrir Radial";
 "Abrir ajustes de Acessibilidade" = "Abrir ajustes de Acessibilidade";
 "Acima" = "Acima";
 "Acima à direita" = "Acima à direita";
@@ -57,7 +57,7 @@
 "Gesto ativo. As preferências são aplicadas a cada novo gesto." = "Gesto ativo. As preferências são aplicadas a cada novo gesto.";
 "Gesto de abertura" = "Gesto de abertura";
 "Gesto desativado. O mouse funciona normalmente." = "Gesto desativado. O mouse funciona normalmente.";
-"Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do AppWheel." = "Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do AppWheel.";
+"Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do Radial." = "Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do Radial.";
 "Idioma" = "Idioma";
 "Memória compartilhada pode ser contada mais de uma vez." = "Memória compartilhada pode ser contada mais de uma vez.";
 "Nenhum aplicativo disponível" = "Nenhum aplicativo disponível";
@@ -69,8 +69,8 @@
 "Não foi possível identificar esse aplicativo." = "Não foi possível identificar esse aplicativo.";
 "Não foi possível iniciar a captura. Tente ativar novamente." = "Não foi possível iniciar a captura. Tente ativar novamente.";
 "Não foi possível solicitar o encerramento de %@." = "Não foi possível solicitar o encerramento de %@.";
-"Não foi possível trazer o AppWheel à frente: %@" = "Não foi possível trazer o AppWheel à frente: %@";
-"O Finder não pode ser fechado pelo AppWheel." = "O Finder não pode ser fechado pelo AppWheel.";
+"Não foi possível trazer o Radial à frente: %@" = "Não foi possível trazer o Radial à frente: %@";
+"O Finder não pode ser fechado pelo Radial." = "O Finder não pode ser fechado pelo Radial.";
 "O macOS não confirmou a ativação de %@." = "O macOS não confirmou a ativação de %@.";
 "Posições salvas automaticamente. Escolher um app já fixado move-o para a nova posição. As alterações valem na próxima abertura da roda." = "Posições salvas automaticamente. Escolher um app já fixado move-o para a nova posição. As alterações valem na próxima abertura da roda.";
 "Preferências" = "Preferências";
@@ -80,12 +80,12 @@
 "Quando mostrar %@: %@" = "Quando mostrar %@: %@";
 "RAM indisponível" = "RAM indisponível";
 "RAM: consultando…" = "RAM: consultando…";
-"Encerre e abra o AppWheel para aplicar a mudança de idioma." = "Encerre e abra o AppWheel para aplicar a mudança de idioma.";
+"Encerre e abra o Radial para aplicar a mudança de idioma." = "Encerre e abra o Radial para aplicar a mudança de idioma.";
 "Remover %@ das exceções" = "Remover %@ das exceções";
 "Remover favorito: %@" = "Remover favorito: %@";
 "Restaurar padrão" = "Restaurar padrão";
 "Roda de aplicativos" = "Roda de aplicativos";
-"Sair do AppWheel" = "Sair do AppWheel";
+"Sair do Radial" = "Sair do Radial";
 "Seguir o sistema" = "Seguir o sistema";
 "Segure o %@ por %@ ms, aponte e solte." = "Segure o %@ por %@ ms, aponte e solte.";
 "Sempre na roda" = "Sempre na roda";
@@ -93,13 +93,13 @@
 "Só quando aberto" = "Só quando aberto";
 "Tamanho da roda" = "Tamanho da roda";
 "Tempo para abrir" = "Tempo para abrir";
-"Reiniciar AppWheel?" = "Reiniciar AppWheel?";
+"Reiniciar Radial?" = "Reiniciar Radial?";
 "Não foi possível reiniciar" = "Não foi possível reiniciar";
 "Reiniciar agora" = "Reiniciar agora";
 "Depois" = "Depois";
 "OK" = "OK";
-"O AppWheel precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas." = "O AppWheel precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas.";
-"O macOS não conseguiu abrir uma nova instância do AppWheel." = "O macOS não conseguiu abrir uma nova instância do AppWheel.";
+"O Radial precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas." = "O Radial precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas.";
+"O macOS não conseguiu abrir uma nova instância do Radial." = "O macOS não conseguiu abrir uma nova instância do Radial.";
 "Clique em uma posição da roda para configurar seu favorito." = "Clique em uma posição da roda para configurar seu favorito.";
 "Editar posição" = "Editar posição";
 "Trocar aplicativo…" = "Trocar aplicativo…";
@@ -109,7 +109,7 @@
 "Esta posição será preenchida por um app aberto." = "Esta posição será preenchida por um app aberto.";
 "Inicialização" = "Inicialização";
 "Iniciar com o macOS" = "Iniciar com o macOS";
-"Abrir o AppWheel em segundo plano ao iniciar sessão no macOS." = "Abrir o AppWheel em segundo plano ao iniciar sessão no macOS.";
+"Abrir o Radial em segundo plano ao iniciar sessão no macOS." = "Abrir o Radial em segundo plano ao iniciar sessão no macOS.";
 "Aguardando sua autorização nos Itens de Início do macOS." = "Aguardando sua autorização nos Itens de Início do macOS.";
 "Abrir Itens de Início" = "Abrir Itens de Início";
 "O macOS não encontrou o app para configurar a inicialização automática." = "O macOS não encontrou o app para configurar a inicialização automática.";
@@ -143,7 +143,7 @@
 "Frutiger Aero" = "Frutiger Aero";
 "Frutiger Aero · Liquid Glass" = "Frutiger Aero · Liquid Glass";
 "Fechar janela" = "Fechar";
-"Fechar janela do AppWheel" = "Fechar janela do AppWheel";
+"Fechar janela do Radial" = "Fechar janela do Radial";
 "Posições por página" = "Posições por página";
 "Página %@ de %@" = "Página %@ de %@";
 "Página anterior" = "Página anterior";
@@ -153,7 +153,7 @@
 "Reproduzir/Pausar" = "Reproduzir/Pausar";
 "Próxima faixa" = "Próxima faixa";
 "A ação não está mais disponível para %@." = "A ação não está mais disponível para %@.";
-"Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação." = "Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação.";
+"Autorize o Radial a controlar %@ em Privacidade e Segurança → Automação." = "Autorize o Radial a controlar %@ em Privacidade e Segurança → Automação.";
 "Não foi possível executar %@ em %@: %@." = "Não foi possível executar %@ em %@: %@.";
 "%@ executado em %@." = "%@ executado em %@.";
 "Reproduzindo mídia" = "Reproduzindo mídia";

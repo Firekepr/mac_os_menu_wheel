@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 MainActor.assumeIsolated {
-    let suite = "AppWheel.ExceptionChecks.\(UUID().uuidString)"
+    let suite = "Radial.ExceptionChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let store = AppExceptions(defaults: defaults)

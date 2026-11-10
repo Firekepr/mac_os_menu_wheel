@@ -45,7 +45,7 @@ enum AppRelaunch {
 
     private struct RelaunchError: LocalizedError {
         var errorDescription: String? {
-            L10n.text("O macOS não conseguiu abrir uma nova instância do AppWheel.")
+            L10n.text("O macOS não conseguiu abrir uma nova instância do Radial.")
         }
     }
 }

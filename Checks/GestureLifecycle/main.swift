@@ -3,7 +3,7 @@ import ApplicationServices
 import Foundation
 
 MainActor.assumeIsolated {
-    let suite = "AppWheel.GestureLifecycleChecks.\(UUID().uuidString)"
+    let suite = "Radial.GestureLifecycleChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
 

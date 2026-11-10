@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct AppWheelApp: App {
+struct RadialApp: App {
     @StateObject private var gesture = GestureController()
 
     var body: some Scene {
@@ -13,11 +13,11 @@ struct AppWheelApp: App {
         .restorationBehavior(.disabled)
         .commands {
             CommandGroup(after: .appInfo) {
-                Button(L10n.text("Abrir AppWheel")) { gesture.openMainWindow() }
+                Button(L10n.text("Abrir Radial")) { gesture.openMainWindow() }
             }
         }
-        MenuBarExtra("AppWheel", systemImage: "circle.hexagongrid.fill") {
-            Button(L10n.text("Abrir AppWheel")) { gesture.openMainWindow() }
+        MenuBarExtra("Radial", systemImage: "circle.hexagongrid.fill") {
+            Button(L10n.text("Abrir Radial")) { gesture.openMainWindow() }
             Divider()
             Button(gesture.isEnabled ? L10n.text("Desativar gesto") : L10n.text("Ativar gesto global")) {
                 if gesture.isEnabled { gesture.stop() } else { gesture.start() }
@@ -25,7 +25,7 @@ struct AppWheelApp: App {
             Button(L10n.text("Prévia flutuante")) { gesture.preview() }
             SettingsLink { Text(L10n.text("Preferências…")) }
             Divider()
-            Button(L10n.text("Sair do AppWheel")) {
+            Button(L10n.text("Sair do Radial")) {
                 gesture.shutDown()
                 NSApplication.shared.terminate(nil)
             }

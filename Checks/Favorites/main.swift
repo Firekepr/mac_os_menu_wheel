@@ -7,7 +7,7 @@ private func firstPage(runningIDs: [String], favorites: [Int: String],
 }
 
 MainActor.assumeIsolated {
-    let suite = "AppWheel.FavoriteChecks.\(UUID().uuidString)"
+    let suite = "Radial.FavoriteChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let favorites = AppFavorites(defaults: defaults)

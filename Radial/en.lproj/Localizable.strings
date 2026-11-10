@@ -1,4 +1,4 @@
-// AppWheel interface translations. %@ placeholders preserve app names and values.
+// Radial interface translations. %@ placeholders preserve app names and values.
 " Alguns processos não puderam ser consultados." = " Some processes could not be measured.";
 " Centro superior ou Esc para cancelar." = " Upper center or Esc to cancel.";
 "%@ de %@ aplicativos abertos na roda." = "%@ of %@ running apps in the wheel.";
@@ -9,7 +9,7 @@
 "Abaixo à esquerda" = "Bottom left";
 "Abrir" = "Open";
 "Abrir %@" = "Open %@";
-"Abrir AppWheel" = "Open AppWheel";
+"Abrir Radial" = "Open Radial";
 "Abrir ajustes de Acessibilidade" = "Open Accessibility settings";
 "Acima" = "Top";
 "Acima à direita" = "Top right";
@@ -57,7 +57,7 @@
 "Gesto ativo. As preferências são aplicadas a cada novo gesto." = "Gesture enabled. Settings take effect on each new gesture.";
 "Gesto de abertura" = "Opening gesture";
 "Gesto desativado. O mouse funciona normalmente." = "Gesture disabled. The mouse works normally.";
-"Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do AppWheel." = "The gesture is enabled in settings. This version of AppWheel needs Accessibility permission.";
+"Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do Radial." = "The gesture is enabled in settings. This version of Radial needs Accessibility permission.";
 "Idioma" = "Language";
 "Memória compartilhada pode ser contada mais de uma vez." = "Shared memory may be counted more than once.";
 "Nenhum aplicativo disponível" = "No apps available";
@@ -69,8 +69,8 @@
 "Não foi possível identificar esse aplicativo." = "Could not identify this application.";
 "Não foi possível iniciar a captura. Tente ativar novamente." = "Could not start mouse capture. Try enabling it again.";
 "Não foi possível solicitar o encerramento de %@." = "Could not request %@ to quit.";
-"Não foi possível trazer o AppWheel à frente: %@" = "Could not bring AppWheel to the front: %@";
-"O Finder não pode ser fechado pelo AppWheel." = "Finder cannot be quit from AppWheel.";
+"Não foi possível trazer o Radial à frente: %@" = "Could not bring Radial to the front: %@";
+"O Finder não pode ser fechado pelo Radial." = "Finder cannot be quit from Radial.";
 "O macOS não confirmou a ativação de %@." = "macOS did not confirm activation of %@.";
 "Posições salvas automaticamente. Escolher um app já fixado move-o para a nova posição. As alterações valem na próxima abertura da roda." = "Positions are saved automatically. Choosing an already pinned app moves it to the new position. Changes take effect the next time the wheel opens.";
 "Preferências" = "Settings";
@@ -80,12 +80,12 @@
 "Quando mostrar %@: %@" = "When to show %@: %@";
 "RAM indisponível" = "RAM unavailable";
 "RAM: consultando…" = "RAM: checking…";
-"Encerre e abra o AppWheel para aplicar a mudança de idioma." = "Quit and reopen AppWheel to apply the language change.";
+"Encerre e abra o Radial para aplicar a mudança de idioma." = "Quit and reopen Radial to apply the language change.";
 "Remover %@ das exceções" = "Remove %@ from exceptions";
 "Remover favorito: %@" = "Remove favorite: %@";
 "Restaurar padrão" = "Restore defaults";
 "Roda de aplicativos" = "App wheel";
-"Sair do AppWheel" = "Quit AppWheel";
+"Sair do Radial" = "Quit Radial";
 "Seguir o sistema" = "Follow system";
 "Segure o %@ por %@ ms, aponte e solte." = "Hold the %@ for %@ ms, point, and release.";
 "Sempre na roda" = "Always in the wheel";
@@ -93,13 +93,13 @@
 "Só quando aberto" = "Only when running";
 "Tamanho da roda" = "Wheel size";
 "Tempo para abrir" = "Hold duration";
-"Reiniciar AppWheel?" = "Restart AppWheel?";
+"Reiniciar Radial?" = "Restart Radial?";
 "Não foi possível reiniciar" = "Could not restart";
 "Reiniciar agora" = "Restart now";
 "Depois" = "Later";
 "OK" = "OK";
-"O AppWheel precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas." = "AppWheel needs to restart to apply the new language. Your settings will be preserved.";
-"O macOS não conseguiu abrir uma nova instância do AppWheel." = "macOS could not open a new instance of AppWheel.";
+"O Radial precisa reiniciar para aplicar o novo idioma. Suas preferências serão mantidas." = "Radial needs to restart to apply the new language. Your settings will be preserved.";
+"O macOS não conseguiu abrir uma nova instância do Radial." = "macOS could not open a new instance of Radial.";
 "Clique em uma posição da roda para configurar seu favorito." = "Click a position in the wheel to configure your favorite.";
 "Editar posição" = "Edit position";
 "Trocar aplicativo…" = "Change application…";
@@ -109,7 +109,7 @@
 "Esta posição será preenchida por um app aberto." = "This position will be filled by a running app.";
 "Inicialização" = "Startup";
 "Iniciar com o macOS" = "Launch at login";
-"Abrir o AppWheel em segundo plano ao iniciar sessão no macOS." = "Open AppWheel in the background when you log in to macOS.";
+"Abrir o Radial em segundo plano ao iniciar sessão no macOS." = "Open Radial in the background when you log in to macOS.";
 "Aguardando sua autorização nos Itens de Início do macOS." = "Waiting for your approval in macOS Login Items.";
 "Abrir Itens de Início" = "Open Login Items";
 "O macOS não encontrou o app para configurar a inicialização automática." = "macOS could not find the app to configure launch at login.";
@@ -143,7 +143,7 @@
 "Frutiger Aero" = "Frutiger Aero";
 "Frutiger Aero · Liquid Glass" = "Frutiger Aero · Liquid Glass";
 "Fechar janela" = "Close";
-"Fechar janela do AppWheel" = "Close AppWheel window";
+"Fechar janela do Radial" = "Close Radial window";
 "Posições por página" = "Slots per page";
 "Página %@ de %@" = "Page %@ of %@";
 "Página anterior" = "Previous page";
@@ -153,7 +153,7 @@
 "Reproduzir/Pausar" = "Play/Pause";
 "Próxima faixa" = "Next track";
 "A ação não está mais disponível para %@." = "This action is no longer available for %@.";
-"Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação." = "Allow AppWheel to control %@ in Privacy & Security → Automation.";
+"Autorize o Radial a controlar %@ em Privacidade e Segurança → Automação." = "Allow Radial to control %@ in Privacy & Security → Automation.";
 "Não foi possível executar %@ em %@: %@." = "Could not run %@ in %@: %@.";
 "%@ executado em %@." = "%@ ran in %@.";
 "Reproduzindo mídia" = "Playing media";

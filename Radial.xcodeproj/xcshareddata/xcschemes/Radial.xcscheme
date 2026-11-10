@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000000000000000000005"
-               BuildableName = "AppWheel.app"
-               BlueprintName = "AppWheel"
-               ReferencedContainer = "container:AppWheel.xcodeproj">
+               BuildableName = "Radial.app"
+               BlueprintName = "Radial"
+               ReferencedContainer = "container:Radial.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -44,9 +44,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000000000000000000005"
-            BuildableName = "AppWheel.app"
-            BlueprintName = "AppWheel"
-            ReferencedContainer = "container:AppWheel.xcodeproj">
+            BuildableName = "Radial.app"
+            BlueprintName = "Radial"
+            ReferencedContainer = "container:Radial.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>

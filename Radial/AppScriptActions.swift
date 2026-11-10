@@ -21,8 +21,8 @@ enum AppScriptActions {
     static let mailID = "com.apple.mail"
     static let authorizeMailBadge = AppScriptAction(title: "Autorizar badge do Mail", symbol: "exclamationmark.triangle.fill",
                                                     eventClass: AEEventClass(kAECoreSuite), eventID: AEEventID(kAEGetData))
-    private static let eventQueue = DispatchQueue(label: "AppWheel.AppleEvents", qos: .userInitiated)
-    private static let playbackQueue = DispatchQueue(label: "AppWheel.PlaybackState", qos: .utility)
+    private static let eventQueue = DispatchQueue(label: "Radial.AppleEvents", qos: .userInitiated)
+    private static let playbackQueue = DispatchQueue(label: "Radial.PlaybackState", qos: .utility)
 
     private static let playbackControls = [
         Control(command: "previous track", title: "Faixa anterior", symbol: "backward.end.fill"),

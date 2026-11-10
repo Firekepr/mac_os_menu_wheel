@@ -2,7 +2,7 @@ import AppKit
 import Carbon
 
 MainActor.assumeIsolated {
-    let suite = "AppWheel.KeyboardChecks.\(UUID().uuidString)"
+    let suite = "Radial.KeyboardChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let preferences = WheelPreferences(defaults: defaults)

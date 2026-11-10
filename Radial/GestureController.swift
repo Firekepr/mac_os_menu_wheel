@@ -4,8 +4,8 @@ import SwiftUI
 import Combine
 
 extension Notification.Name {
-    static let appWheelOpenMainWindow = Notification.Name("AppWheel.openMainWindow")
-    static let appWheelToggleMainWindow = Notification.Name("AppWheel.toggleMainWindow")
+    static let radialOpenMainWindow = Notification.Name("Radial.openMainWindow")
+    static let radialToggleMainWindow = Notification.Name("Radial.toggleMainWindow")
 }
 
 private final class WheelPanel: NSPanel {
@@ -84,9 +84,9 @@ final class GestureController: ObservableObject {
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
                                                name: NSApplication.willTerminateNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(openMainWindow),
-                                               name: .appWheelOpenMainWindow, object: nil)
+                                               name: .radialOpenMainWindow, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(toggleMainWindow),
-                                               name: .appWheelToggleMainWindow, object: nil)
+                                               name: .radialToggleMainWindow, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(mainWindowWillClose),
                                                name: NSWindow.willCloseNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(restoreGestureIfNeeded),
@@ -121,7 +121,7 @@ final class GestureController: ObservableObject {
         guard !isEnabled else { return }
         guard AXIsProcessTrusted() else {
             needsPermission = true
-            status = L10n.text("Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do AppWheel.")
+            status = L10n.text("Gesto salvo como ativado. Falta a permissão de Acessibilidade para esta versão do Radial.")
             // Restoring a preference must never produce a permission-dialog loop.
             if requestPermission && !didRequestPermission {
                 didRequestPermission = true
@@ -216,7 +216,7 @@ final class GestureController: ObservableObject {
             let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 640, height: 800),
                                   styleMask: [.titled, .closable, .miniaturizable],
                                   backing: .buffered, defer: false)
-            window.title = "AppWheel"
+            window.title = "Radial"
             window.isReleasedWhenClosed = false
             window.center()
             mainWindow = window
@@ -244,7 +244,7 @@ final class GestureController: ObservableObject {
                 guard let self, let window, self.selection.isMainWindowOpen,
                       window.isVisible, !window.isMiniaturized else { return }
                 if let error {
-                    self.status = L10n.text("Não foi possível trazer o AppWheel à frente: %@", error.localizedDescription)
+                    self.status = L10n.text("Não foi possível trazer o Radial à frente: %@", error.localizedDescription)
                 } else {
                     window.makeKeyAndOrderFront(nil)
                     window.orderFrontRegardless()

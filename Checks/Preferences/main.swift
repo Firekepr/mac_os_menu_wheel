@@ -51,7 +51,7 @@ MainActor.assumeIsolated {
     precondition(!login.isRequested)
     print("Login-item checks passed: no automatic registration, enable, disable, approval, external changes, failure recovery.")
 
-    let suite = "AppWheel.PreferenceChecks.\(UUID().uuidString)"
+    let suite = "Radial.PreferenceChecks.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let preferences = WheelPreferences(defaults: defaults)

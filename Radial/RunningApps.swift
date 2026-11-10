@@ -63,7 +63,7 @@ enum WindowAction: Equatable {
 
 enum AppWindows {
     static let braveBundleIdentifier = "com.brave.Browser"
-    private static let queue = DispatchQueue(label: "AppWheel.AccessibilityWindows", qos: .userInitiated)
+    private static let queue = DispatchQueue(label: "Radial.AccessibilityWindows", qos: .userInitiated)
 
     static func braveHasAudibleTab(pid: pid_t) async -> Bool {
         guard AXIsProcessTrusted() else { return false }
@@ -332,7 +332,7 @@ final class RunningApps: ObservableObject {
                        let settings = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
                         NSWorkspace.shared.open(settings)
                     }
-                    message = L10n.text("Autorize o AppWheel a controlar %@ em Privacidade e Segurança → Automação.", app.name)
+                    message = L10n.text("Autorize o Radial a controlar %@ em Privacidade e Segurança → Automação.", app.name)
                 } else {
                     message = L10n.text("Não foi possível executar %@ em %@: %@.", L10n.text(action.title), app.name, error.localizedDescription)
                 }
@@ -347,7 +347,7 @@ final class RunningApps: ObservableObject {
                      isRunning: (NSRunningApplication) -> Bool = { !$0.isTerminated },
                      terminate: (NSRunningApplication) -> Bool = { $0.terminate() }) -> String? {
         guard !app.isQuitProtected else {
-            let message = L10n.text("O Finder não pode ser fechado pelo AppWheel.")
+            let message = L10n.text("O Finder não pode ser fechado pelo Radial.")
             activationError = message
             return message
         }
@@ -395,7 +395,7 @@ final class RunningApps: ObservableObject {
             return
         }
 
-        // The global wheel intentionally leaves AppWheel in the background.
+        // The global wheel intentionally leaves Radial in the background.
         // Route activation through Launch Services rather than relying on a
         // background NSRunningApplication.activate() request being honored.
         let configuration = NSWorkspace.OpenConfiguration()

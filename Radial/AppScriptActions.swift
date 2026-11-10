@@ -568,12 +568,45 @@ struct AppActionSettingsView: View {
         (symbol: "hammer.fill", title: "Martelo"),
         (symbol: "checkmark.circle.fill", title: "Confirmação"),
         (symbol: "folder.fill", title: "Pasta"),
-        (symbol: "envelope.fill", title: "Envelope")
+        (symbol: "envelope.fill", title: "Envelope"),
+        (symbol: "magnifyingglass", title: "Busca"),
+        (symbol: "pencil", title: "Lápis"),
+        (symbol: "scissors", title: "Tesoura"),
+        (symbol: "doc.on.doc", title: "Copiar"),
+        (symbol: "clipboard", title: "Área de transferência"),
+        (symbol: "arrow.uturn.backward", title: "Desfazer"),
+        (symbol: "arrow.uturn.forward", title: "Refazer"),
+        (symbol: "trash", title: "Lixeira"),
+        (symbol: "plus.circle", title: "Adicionar item"),
+        (symbol: "minus.circle", title: "Remover item"),
+        (symbol: "doc.text", title: "Documento"),
+        (symbol: "tray.and.arrow.down", title: "Salvar arquivo"),
+        (symbol: "arrow.down.circle", title: "Baixar"),
+        (symbol: "arrow.up.circle", title: "Carregar arquivo"),
+        (symbol: "square.and.arrow.up", title: "Compartilhar"),
+        (symbol: "link", title: "Link"),
+        (symbol: "bookmark", title: "Marcador"),
+        (symbol: "printer", title: "Impressora"),
+        (symbol: "macwindow", title: "Janela do app"),
+        (symbol: "sidebar.left", title: "Barra lateral"),
+        (symbol: "arrow.clockwise", title: "Atualizar"),
+        (symbol: "arrow.left", title: "Seta para a esquerda"),
+        (symbol: "arrow.right", title: "Seta para a direita"),
+        (symbol: "gearshape", title: "Engrenagem"),
+        (symbol: "terminal", title: "Terminal"),
+        (symbol: "camera", title: "Câmera"),
+        (symbol: "photo", title: "Imagem"),
+        (symbol: "mic", title: "Microfone"),
+        (symbol: "speaker.wave.2.fill", title: "Alto-falante"),
+        (symbol: "speaker.slash.fill", title: "Silenciar"),
+        (symbol: "backward.fill", title: "Retroceder"),
+        (symbol: "stop.fill", title: "Parar reprodução")
     ]
     @ObservedObject var preferences: AppActionPreferences
     let capacity: WheelCapacity
     let theme: WheelTheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var wheelApps: RunningApps
     @State private var closedApplications: [Application] = []
     @State private var selectedID: String?
@@ -692,6 +725,7 @@ struct AppActionSettingsView: View {
 
     private var wheel: some View {
         let diameter: CGFloat = 320
+        let wheelScale = diameter / WheelGeometry.size
         let radius = diameter * 0.35
         let focusedIndex = pageSlots.first { $0.app != nil && $0.app?.id == selectedID }?.id
         let zoom: CGFloat = focusedIndex == nil || reduceMotion ? 1 : 1.6
@@ -702,10 +736,10 @@ struct AppActionSettingsView: View {
         let iconSize = 36 * zoom
 
         return ZStack {
-            WheelBackdrop(shape: Circle(), theme: theme)
+            WheelFace(theme: theme, diameter: diameter)
             ForEach(pageSlots) { slot in
                 let index = slot.id
-                let sector = WheelSector(index: index, count: pageSlots.count)
+                let sector = WheelSector(index: index, count: pageSlots.count, innerRadius: 77 * wheelScale)
                 let app = slot.app
                 let active = focusedIndex == index
                 Button {
@@ -713,8 +747,12 @@ struct AppActionSettingsView: View {
                     selectedID = active ? nil : app.id
                 } label: {
                     ZStack {
-                        sector.fill(active ? theme.accent.opacity(0.35) : .clear)
-                        sector.stroke(.primary.opacity(0.18), lineWidth: 1)
+                        if active {
+                            sector.fill(RadialGradient(colors: theme.sectorColors, center: .center,
+                                                       startRadius: 75 * wheelScale, endRadius: diameter / 2))
+                        }
+                        sector.stroke(.primary.opacity(theme == .highContrast ? 0.40 : theme.isAero ? 0.24 : 0.08),
+                                      lineWidth: 1)
                     }
                     .contentShape(sector)
                 }
@@ -726,11 +764,17 @@ struct AppActionSettingsView: View {
                 .accessibilityAddTraits(active ? .isSelected : [])
                 .help(app?.name ?? "")
             }
-            if focusedIndex == nil {
-                Text(L10n.text("Escolha um app"))
-                    .font(.callout.weight(.semibold))
-                    .allowsHitTesting(false)
-            }
+            WheelCenterBackdrop(theme: theme)
+                .frame(width: WheelGeometry.centerDiameter * wheelScale,
+                       height: WheelGeometry.centerDiameter * wheelScale)
+                .overlay {
+                    if focusedIndex == nil {
+                        Text(L10n.text("Escolha um app"))
+                            .font(.callout.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .allowsHitTesting(false)
         }
         .frame(width: diameter, height: diameter)
         .scaleEffect(zoom)
@@ -772,6 +816,7 @@ struct AppActionSettingsView: View {
         .frame(height: focusedIndex == nil ? diameter : 360)
         .clipped()
         .contentShape(Rectangle())
+        .environment(\.colorScheme, theme == .highContrast || theme.isAero ? .dark : colorScheme)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: selectedID)
     }
 

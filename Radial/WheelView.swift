@@ -93,6 +93,47 @@ struct WheelBackdrop<Outline: Shape>: View {
     }
 }
 
+struct WheelFace: View {
+    let theme: WheelTheme
+    let diameter: CGFloat
+
+    var body: some View {
+        WheelBackdrop(shape: Circle(), theme: theme)
+            .frame(width: diameter, height: diameter)
+            .overlay {
+                if theme.isAero {
+                    AeroBubbles()
+                        .scaleEffect(diameter / WheelGeometry.size)
+                }
+            }
+            .allowsHitTesting(false)
+    }
+}
+
+struct WheelCenterBackdrop: View {
+    let theme: WheelTheme
+
+    var body: some View {
+        switch theme {
+        case .glass:
+            Circle().fill(.background.opacity(0.45))
+        case .frutigerAero:
+            Circle()
+                .fill(LinearGradient(colors: [theme.surface, Color(red: 0.02, green: 0.18, blue: 0.32)],
+                                     startPoint: .top, endPoint: .bottom))
+                .overlay { Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1) }
+        case .frutigerAeroGlass:
+            Circle().fill(Color(red: 0.02, green: 0.18, blue: 0.32).opacity(0.75))
+                .glassEffect(.regular.tint(theme.surface.opacity(0.45)), in: Circle())
+                .overlay { Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1) }
+        case .highContrast:
+            Circle().fill(.black)
+        case .minimal:
+            Circle().fill(Color(nsColor: .controlBackgroundColor))
+        }
+    }
+}
+
 private struct AeroBubbles: View {
     private let bubbles: [(x: CGFloat, y: CGFloat, size: CGFloat)] = [
         (65, 94, 28), (84, 68, 10), (307, 96, 22),
@@ -304,10 +345,7 @@ struct WheelView: View {
 
     var body: some View {
         ZStack {
-            WheelBackdrop(shape: Circle(), theme: theme)
-            if theme.isAero {
-                AeroBubbles()
-            }
+            WheelFace(theme: theme, diameter: WheelGeometry.size)
 
             ZStack {
                 pageSectors
@@ -361,25 +399,7 @@ struct WheelView: View {
             .offset(y: selected == nil ? -16 : 0)
             .padding(8)
             .frame(width: WheelGeometry.centerDiameter, height: WheelGeometry.centerDiameter)
-            .background {
-                switch theme {
-                case .glass:
-                    Circle().fill(.background.opacity(0.45))
-                case .frutigerAero:
-                    Circle()
-                        .fill(LinearGradient(colors: [theme.surface, Color(red: 0.02, green: 0.18, blue: 0.32)],
-                                             startPoint: .top, endPoint: .bottom))
-                        .overlay { Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1) }
-                case .frutigerAeroGlass:
-                    Circle().fill(Color(red: 0.02, green: 0.18, blue: 0.32).opacity(0.75))
-                        .glassEffect(.regular.tint(theme.surface.opacity(0.45)), in: Circle())
-                        .overlay { Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1) }
-                case .highContrast:
-                    Circle().fill(.black)
-                case .minimal:
-                    Circle().fill(Color(nsColor: .controlBackgroundColor))
-                }
-            }
+            .background { WheelCenterBackdrop(theme: theme) }
             .overlay {
                 if selected == nil {
                     CenterOpenArea()
@@ -575,6 +595,7 @@ private struct WheelRim: Shape {
 struct WheelSector: Shape {
     let index: Int
     let count: Int
+    var innerRadius: CGFloat = 77
 
     func path(in rect: CGRect) -> Path {
         let center = CGPoint(x: rect.midX, y: rect.midY)
@@ -584,7 +605,7 @@ struct WheelSector: Shape {
         var path = Path()
         path.addArc(center: center, radius: rect.width / 2 - 5,
                     startAngle: start, endAngle: end, clockwise: false)
-        path.addArc(center: center, radius: 77,
+        path.addArc(center: center, radius: innerRadius,
                     startAngle: end, endAngle: start, clockwise: true)
         path.closeSubpath()
         return path

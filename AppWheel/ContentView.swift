@@ -122,6 +122,13 @@ struct ContentView: View {
         }
         .padding(32)
         .frame(width: 640, height: 800)
+        .overlay(alignment: .bottomTrailing) {
+            Text(verbatim: "by Firekeper")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(16)
+                .allowsHitTesting(false)
+        }
         .onAppear { interaction.diameter = previewDiameter }
         .onChange(of: preferences.wheelCapacity) { _, capacity in
             model.refresh(capacity: capacity)

@@ -735,8 +735,7 @@ struct AppActionSettingsView: View {
         let offset = focusedIndex.map { sectorOffset($0, radius: -focusRadius) } ?? .zero
         let iconSize = 36 * zoom
 
-        return ZStack {
-            WheelFace(theme: theme, diameter: diameter)
+        return WheelSurface(theme: theme, diameter: diameter) {
             ForEach(pageSlots) { slot in
                 let index = slot.id
                 let sector = WheelSector(index: index, count: pageSlots.count, innerRadius: 77 * wheelScale)
@@ -746,15 +745,8 @@ struct AppActionSettingsView: View {
                     guard let app else { return }
                     selectedID = active ? nil : app.id
                 } label: {
-                    ZStack {
-                        if active {
-                            sector.fill(RadialGradient(colors: theme.sectorColors, center: .center,
-                                                       startRadius: 75 * wheelScale, endRadius: diameter / 2))
-                        }
-                        sector.stroke(.primary.opacity(theme == .highContrast ? 0.40 : theme.isAero ? 0.24 : 0.08),
-                                      lineWidth: 1)
-                    }
-                    .contentShape(sector)
+                    WheelSectorDecoration(sector: sector, diameter: diameter, theme: theme, selected: active)
+                        .contentShape(sector)
                 }
                 .buttonStyle(.plain)
                 .disabled(app == nil)
@@ -764,6 +756,7 @@ struct AppActionSettingsView: View {
                 .accessibilityAddTraits(active ? .isSelected : [])
                 .help(app?.name ?? "")
             }
+        } center: {
             WheelCenterBackdrop(theme: theme)
                 .frame(width: WheelGeometry.centerDiameter * wheelScale,
                        height: WheelGeometry.centerDiameter * wheelScale)
@@ -776,7 +769,6 @@ struct AppActionSettingsView: View {
                 }
                 .allowsHitTesting(false)
         }
-        .frame(width: diameter, height: diameter)
         .scaleEffect(zoom)
         .offset(offset)
         .overlay {
@@ -808,6 +800,7 @@ struct AppActionSettingsView: View {
         .overlay {
             if let index = focusedIndex, let app = selectedWheelApp, revealedAppID == app.id {
                 actionSectors(for: app, at: index, diameter: zoomedDiameter)
+                    .environment(\.colorScheme, theme.usesDarkAppearance ? .dark : colorScheme)
                     .offset(offset)
                     .transition(.asymmetric(insertion: .opacity, removal: .identity))
             }
@@ -816,7 +809,6 @@ struct AppActionSettingsView: View {
         .frame(height: focusedIndex == nil ? diameter : 360)
         .clipped()
         .contentShape(Rectangle())
-        .environment(\.colorScheme, theme == .highContrast || theme.isAero ? .dark : colorScheme)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: selectedID)
     }
 
@@ -835,7 +827,7 @@ struct AppActionSettingsView: View {
     }
 
     private func sectorOffset(_ index: Int, radius: CGFloat) -> CGSize {
-        let angle = Double(index) * 2 * .pi / Double(pageSlots.count) - .pi / 2
+        let angle = WheelGeometry.angle(for: index, count: pageSlots.count)
         return CGSize(width: cos(angle) * radius, height: sin(angle) * radius)
     }
 

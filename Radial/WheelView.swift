@@ -16,6 +16,7 @@ enum WheelTheme: String, CaseIterable, Identifiable {
     }
 
     var isAero: Bool { self == .frutigerAero || self == .frutigerAeroGlass }
+    var usesDarkAppearance: Bool { self == .highContrast || isAero }
 
     var accent: Color {
         switch self {
@@ -93,20 +94,28 @@ struct WheelBackdrop<Outline: Shape>: View {
     }
 }
 
-struct WheelFace: View {
+struct WheelSurface<Sectors: View, Center: View>: View {
     let theme: WheelTheme
     let diameter: CGFloat
+    @ViewBuilder let sectors: () -> Sectors
+    @ViewBuilder let center: () -> Center
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        WheelBackdrop(shape: Circle(), theme: theme)
-            .frame(width: diameter, height: diameter)
-            .overlay {
-                if theme.isAero {
-                    AeroBubbles()
-                        .scaleEffect(diameter / WheelGeometry.size)
-                }
+        ZStack {
+            WheelBackdrop(shape: Circle(), theme: theme)
+                .frame(width: diameter, height: diameter)
+                .allowsHitTesting(false)
+            if theme.isAero {
+                AeroBubbles()
+                    .scaleEffect(diameter / WheelGeometry.size)
+                    .frame(width: diameter, height: diameter)
             }
-            .allowsHitTesting(false)
+            sectors()
+            center()
+        }
+        .frame(width: diameter, height: diameter)
+        .environment(\.colorScheme, theme.usesDarkAppearance ? .dark : colorScheme)
     }
 }
 
@@ -169,7 +178,6 @@ struct WheelView: View {
     var showsMemoryUsage = false
     var theme: WheelTheme = .glass
     var isMainWindowOpen = false
-    @Environment(\.colorScheme) private var colorScheme
     @State private var memory: AppMemoryUsage?
     @State private var memoryPID: pid_t?
     @State private var isLoadingMemory = false
@@ -253,36 +261,12 @@ struct WheelView: View {
             ForEach(model.slots) { slot in
                 let index = slot.id
                 let app = slot.app
-                let angle = Double(index) * 2 * .pi / Double(model.slots.count) - .pi / 2
+                let angle = WheelGeometry.angle(for: index, count: model.slots.count)
                 let active = app != nil && selectedID == app?.id
                 let iconRadius: CGFloat = active && !reduceMotion ? 140 : 135
 
-                WheelSector(index: index, count: model.slots.count)
-                    .fill(
-                        RadialGradient(
-                            colors: theme.sectorColors,
-                            center: .center, startRadius: 75, endRadius: 190
-                        )
-                    )
-                    .opacity(active ? 1 : 0)
-
-                WheelSector(index: index, count: model.slots.count)
-                    .stroke(.primary.opacity(theme == .highContrast ? 0.40 : theme.isAero ? 0.24 : 0.08), lineWidth: 1)
-
-                WheelSector(index: index, count: model.slots.count)
-                    .stroke(.white.opacity(theme == .minimal ? 0 : 0.22), lineWidth: 1)
-                    .opacity(active ? 1 : 0)
-
-                WheelRim(index: index, count: model.slots.count)
-                    .stroke(
-                        LinearGradient(
-                            colors: theme.rimColors,
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ),
-                        style: StrokeStyle(lineWidth: theme == .highContrast ? 4 : theme == .minimal ? 1.5 : 2.5, lineCap: .round)
-                    )
-                    .shadow(color: theme == .glass ? .accentColor.opacity(0.65) : .clear, radius: 7)
-                    .opacity(active ? 1 : 0)
+                WheelSectorDecoration(sector: WheelSector(index: index, count: model.slots.count),
+                                      diameter: WheelGeometry.size, theme: theme, selected: active)
 
                 if active && (theme == .glass || theme.isAero) {
                     Circle()
@@ -344,16 +328,14 @@ struct WheelView: View {
     }
 
     var body: some View {
-        ZStack {
-            WheelFace(theme: theme, diameter: WheelGeometry.size)
-
+        WheelSurface(theme: theme, diameter: WheelGeometry.size) {
             ZStack {
                 pageSectors
                     .id(model.pageIndex)
                     .transition(pageTransition)
             }
             .animation(.easeInOut(duration: reduceMotion ? 0.12 : 0.20), value: model.pageTurnRevision)
-
+        } center: {
             VStack(spacing: selectedActionTitle == nil && selectedWindowTitle == nil ? 6 : 3) {
                 Image(systemName: selected == nil ? "cursorarrow.rays" : "arrow.up.forward.app")
                     .font(.title2)
@@ -424,8 +406,6 @@ struct WheelView: View {
                     .stroke(theme.accent.opacity(selected == nil ? 0 : 0.30), lineWidth: 1)
             }
         }
-        .environment(\.colorScheme, theme == .highContrast || theme.isAero ? .dark : colorScheme)
-        .frame(width: 380, height: 380)
         .contentShape(Circle())
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.24, bounce: 0.15), value: selectedID)
         .animation(.easeOut(duration: 0.12), value: isOpenMainWindowHovered)
@@ -576,19 +556,34 @@ struct SelectedIconFloat: ViewModifier {
     }
 }
 
-/// Just the outside arc, so the light follows the selected sector's rim.
-private struct WheelRim: Shape {
-    let index: Int
-    let count: Int
+struct WheelSectorDecoration: View {
+    let sector: WheelSector
+    let diameter: CGFloat
+    let theme: WheelTheme
+    let selected: Bool
+    var hovered = false
+    var dropTarget = false
 
-    func path(in rect: CGRect) -> Path {
-        let step = 360.0 / Double(max(count, 1))
-        let middle = Double(index) * step - 90
-        var path = Path()
-        path.addArc(center: CGPoint(x: rect.midX, y: rect.midY), radius: rect.width / 2 - 5,
-                    startAngle: .degrees(middle - step / 2 + 2),
-                    endAngle: .degrees(middle + step / 2 - 2), clockwise: false)
-        return path
+    var body: some View {
+        let highlighted = selected || dropTarget
+        let borderOpacity = theme == .highContrast ? 0.40 : theme.isAero ? 0.24 : 0.08
+        let rimWidth: CGFloat = theme == .highContrast ? 4 : theme == .minimal ? 1.5 : 2.5
+        ZStack {
+            sector.fill(RadialGradient(colors: theme.sectorColors, center: .center,
+                                       startRadius: sector.innerRadius - 2, endRadius: diameter / 2))
+                .opacity(highlighted ? 1 : hovered ? 0.4 : 0)
+            sector.stroke(.primary.opacity(borderOpacity), lineWidth: 1)
+            sector.stroke(.white.opacity(theme == .minimal ? 0 : 0.22), lineWidth: 1)
+                .opacity(highlighted ? 1 : 0)
+            sector.rim
+                .stroke(LinearGradient(colors: theme.rimColors, startPoint: .topLeading, endPoint: .bottomTrailing),
+                        style: StrokeStyle(lineWidth: rimWidth, lineCap: .round))
+                .shadow(color: theme == .glass ? .accentColor.opacity(0.65) : .clear, radius: 7)
+                .opacity(highlighted ? 1 : 0)
+            if dropTarget {
+                sector.stroke(theme.accent, lineWidth: 2.5)
+            }
+        }
     }
 }
 
@@ -596,19 +591,39 @@ struct WheelSector: Shape {
     let index: Int
     let count: Int
     var innerRadius: CGFloat = 77
+    var outerInset: CGFloat = 5
+
+    private var angle: Double { WheelGeometry.angle(for: index, count: count) }
+    private var halfStep: Double { .pi / Double(max(count, 1)) }
+
+    var rim: some Shape {
+        Rim(sector: self)
+    }
 
     func path(in rect: CGRect) -> Path {
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let step = 360.0 / Double(max(count, 1))
-        let start = Angle.degrees(Double(index) * step - 90 - step / 2)
-        let end = Angle.degrees(Double(index) * step - 90 + step / 2)
+        let start = Angle.radians(angle - halfStep)
+        let end = Angle.radians(angle + halfStep)
         var path = Path()
-        path.addArc(center: center, radius: rect.width / 2 - 5,
+        path.addArc(center: center, radius: rect.width / 2 - outerInset,
                     startAngle: start, endAngle: end, clockwise: false)
         path.addArc(center: center, radius: innerRadius,
                     startAngle: end, endAngle: start, clockwise: true)
         path.closeSubpath()
         return path
     }
-}
 
+    private struct Rim: Shape {
+        let sector: WheelSector
+
+        func path(in rect: CGRect) -> Path {
+            let inset = Angle.degrees(2).radians
+            var path = Path()
+            path.addArc(center: CGPoint(x: rect.midX, y: rect.midY),
+                        radius: rect.width / 2 - sector.outerInset,
+                        startAngle: .radians(sector.angle - sector.halfStep + inset),
+                        endAngle: .radians(sector.angle + sector.halfStep - inset), clockwise: false)
+            return path
+        }
+    }
+}

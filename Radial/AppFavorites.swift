@@ -177,7 +177,6 @@ struct AppFavoritesView: View {
     @ObservedObject var favorites: AppFavorites
     let theme: WheelTheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @State private var runningApps: [NSRunningApplication] = []
     @State private var selectedPosition = 0
     @State private var hoveredPosition: Int?
@@ -200,11 +199,11 @@ struct AppFavoritesView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
 
-            ZStack {
-                WheelFace(theme: theme, diameter: FavoriteEditorGeometry.diameter)
+            WheelSurface(theme: theme, diameter: FavoriteEditorGeometry.diameter) {
                 ForEach(0..<8, id: \.self) { position in
                     positionButton(position)
                 }
+            } center: {
                 VStack(spacing: 5) {
                     Image(systemName: "pencil.tip.crop.circle")
                         .font(.title2).foregroundStyle(theme.accent)
@@ -219,7 +218,6 @@ struct AppFavoritesView: View {
                 .background { WheelCenterBackdrop(theme: theme) }
                 .allowsHitTesting(false)
             }
-            .frame(width: FavoriteEditorGeometry.diameter, height: FavoriteEditorGeometry.diameter)
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let location):
@@ -228,7 +226,6 @@ struct AppFavoritesView: View {
                     hoveredPosition = nil
                 }
             }
-            .environment(\.colorScheme, theme == .highContrast || theme.isAero ? .dark : colorScheme)
             .coordinateSpace(name: "favoriteEditorWheel")
             .overlay(alignment: .topLeading) {
                 if !dragCancelled, let dragState,
@@ -423,40 +420,36 @@ private struct FavoritePositionLabel: View {
     let isDragging: Bool
 
     var body: some View {
-        let sector = FavoriteEditorSector(position: position)
-        let angle = Double(position) * .pi / 4 - .pi / 2
-            ZStack {
-                sector.fill(RadialGradient(colors: theme.sectorColors, center: .center,
-                                           startRadius: FavoriteEditorGeometry.innerRadius,
-                                           endRadius: FavoriteEditorGeometry.diameter / 2))
-                    .opacity(dropTarget || selected ? 1 : hovered ? 0.4 : 0)
-                sector.stroke(dropTarget || selected ? theme.accent.opacity(0.7) :
-                              Color.primary.opacity(theme == .highContrast ? 0.40 : theme.isAero ? 0.24 : 0.08),
-                              lineWidth: dropTarget ? 2.5 : selected ? 1.5 : 1)
-                VStack(spacing: 3) {
-                    if let app {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
-                            .resizable().interpolation(.high)
-                            .frame(width: 36, height: 36)
-                            .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
-                            .opacity(isDragging ? 0.25 : 1)
-                    } else {
-                        Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(selected ? theme.accent : .secondary)
-                            .frame(width: 36, height: 36)
-                            .background(.primary.opacity(0.045), in: Circle())
-                    }
-                    Text(app?.name ?? L10n.text("Automático"))
-                        .font(.system(size: 10, weight: selected ? .semibold : .regular))
-                        .lineLimit(1).truncationMode(.tail)
-                        .frame(width: 80)
-                    RunningAppIndicator()
-                        .opacity(isRunning ? 1 : 0)
+        let sector = WheelSector(index: position, count: 8, innerRadius: FavoriteEditorGeometry.innerRadius,
+                                 outerInset: FavoriteEditorGeometry.outerInset)
+        let angle = WheelGeometry.angle(for: position, count: 8)
+        ZStack {
+            WheelSectorDecoration(sector: sector, diameter: FavoriteEditorGeometry.diameter, theme: theme,
+                                  selected: selected, hovered: hovered, dropTarget: dropTarget)
+            VStack(spacing: 3) {
+                if let app {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
+                        .resizable().interpolation(.high)
+                        .frame(width: 36, height: 36)
+                        .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
+                        .opacity(isDragging ? 0.25 : 1)
+                } else {
+                    Image(systemName: "plus")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(selected ? theme.accent : .secondary)
+                        .frame(width: 36, height: 36)
+                        .background(.primary.opacity(0.045), in: Circle())
                 }
-                .offset(x: cos(angle) * 115, y: sin(angle) * 115)
+                Text(app?.name ?? L10n.text("Automático"))
+                    .font(.system(size: 10, weight: selected ? .semibold : .regular))
+                    .lineLimit(1).truncationMode(.tail)
+                    .frame(width: 80)
+                RunningAppIndicator()
+                    .opacity(isRunning ? 1 : 0)
             }
-            .contentShape(sector)
+            .offset(x: cos(angle) * 115, y: sin(angle) * 115)
+        }
+        .contentShape(sector)
     }
 }
 
@@ -468,31 +461,10 @@ private struct FavoriteDragState: Equatable {
 enum FavoriteEditorGeometry {
     static let diameter: CGFloat = 320
     static let innerRadius: CGFloat = 58
+    static let outerInset: CGFloat = 3
 
     static func position(at point: CGPoint) -> Int? {
-        let dx = point.x - diameter / 2
-        let dy = point.y - diameter / 2
-        let distance = hypot(dx, dy)
-        guard distance > innerRadius, distance <= diameter / 2 - 3 else { return nil }
-        let step = Double.pi / 4
-        let angle = (atan2(dy, dx) + .pi / 2 + step / 2 + 2 * .pi).truncatingRemainder(dividingBy: 2 * .pi)
-        return Int(angle / step) % 8
-    }
-}
-
-/// Eight fixed directions, matching the wheel's clockwise order from the top.
-private struct FavoriteEditorSector: Shape {
-    let position: Int
-    func path(in rect: CGRect) -> Path {
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let start = Angle.degrees(Double(position) * 45 - 90 - 22.5)
-        let end = Angle.degrees(Double(position) * 45 - 90 + 22.5)
-        var path = Path()
-        path.addArc(center: center, radius: rect.width / 2 - 3,
-                    startAngle: start, endAngle: end, clockwise: false)
-        path.addArc(center: center, radius: FavoriteEditorGeometry.innerRadius,
-                    startAngle: end, endAngle: start, clockwise: true)
-        path.closeSubpath()
-        return path
+        WheelGeometry.index(at: point, count: 8, allowsBeyondEdge: false, diameter: diameter,
+                            innerRadius: innerRadius, outerInset: outerInset)
     }
 }

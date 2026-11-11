@@ -44,7 +44,7 @@ private struct AppSettingsView: View {
             WheelPreferencesView(preferences: preferences)
                 .tabItem { Label(L10n.text("Geral"), systemImage: "slider.horizontal.3") }
                 .tag(0)
-            AppFavoritesView(favorites: favorites)
+            AppFavoritesView(favorites: favorites, theme: preferences.theme)
                 .tabItem { Label(L10n.text("Favoritos"), systemImage: "star") }
                 .tag(1)
             AppActionSettingsView(preferences: preferences.appActions, favorites: favorites, capacity: preferences.wheelCapacity, theme: preferences.theme)

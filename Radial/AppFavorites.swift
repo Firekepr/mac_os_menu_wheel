@@ -175,7 +175,9 @@ final class AppFavorites: ObservableObject {
 
 struct AppFavoritesView: View {
     @ObservedObject var favorites: AppFavorites
+    let theme: WheelTheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var runningApps: [NSRunningApplication] = []
     @State private var selectedPosition = 0
     @State private var hoveredPosition: Int?
@@ -199,15 +201,13 @@ struct AppFavoritesView: View {
             }
 
             ZStack {
-                Circle()
-                    .fill(.clear)
-                    .glassEffect(.regular, in: Circle())
+                WheelFace(theme: theme, diameter: FavoriteEditorGeometry.diameter)
                 ForEach(0..<8, id: \.self) { position in
                     positionButton(position)
                 }
                 VStack(spacing: 5) {
                     Image(systemName: "pencil.tip.crop.circle")
-                        .font(.title2).foregroundStyle(Color.accentColor)
+                        .font(.title2).foregroundStyle(theme.accent)
                     Text(AppFavorites.directions[selectedPosition])
                         .font(.system(size: 12, weight: .semibold))
                         .multilineTextAlignment(.center)
@@ -216,10 +216,19 @@ struct AppFavoritesView: View {
                 }
                 .padding(10)
                 .frame(width: 106, height: 106)
-                .background(.quaternary.opacity(0.4), in: Circle())
+                .background { WheelCenterBackdrop(theme: theme) }
                 .allowsHitTesting(false)
             }
-            .frame(width: 320, height: 320)
+            .frame(width: FavoriteEditorGeometry.diameter, height: FavoriteEditorGeometry.diameter)
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    hoveredPosition = FavoriteEditorGeometry.position(at: location)
+                case .ended:
+                    hoveredPosition = nil
+                }
+            }
+            .environment(\.colorScheme, theme == .highContrast || theme.isAero ? .dark : colorScheme)
             .coordinateSpace(name: "favoriteEditorWheel")
             .overlay(alignment: .topLeading) {
                 if !dragCancelled, let dragState,
@@ -251,6 +260,7 @@ struct AppFavoritesView: View {
         .onAppear { refreshRunningApps() }
         .onDisappear { finishDrag() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            hoveredPosition = nil
             if dragState != nil { dragCancelled = true }
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in
@@ -291,15 +301,11 @@ struct AppFavoritesView: View {
         return Button {
             selectedPosition = position
         } label: {
-            FavoritePositionLabel(position: position, app: app, isRunning: isRunning,
+            FavoritePositionLabel(position: position, app: app, isRunning: isRunning, theme: theme,
                                   selected: selected, hovered: hovered, dropTarget: dropTarget,
                                   isDragging: !dragCancelled && app != nil && dragState?.id == app?.id)
         }
         .buttonStyle(.plain)
-        .onHover { inside in
-            if inside { hoveredPosition = position }
-            else if hoveredPosition == position { hoveredPosition = nil }
-        }
         .help(L10n.text("Favorito — %@", AppFavorites.directions[position]) + ": " + (app?.name ?? L10n.text("Automático")))
         .accessibilityLabel(L10n.text("Escolher favorito: %@", AppFavorites.directions[position]))
         .accessibilityValue((app?.name ?? L10n.text("Automático"))
@@ -410,6 +416,7 @@ private struct FavoritePositionLabel: View {
     let position: Int
     let app: FavoriteApp?
     let isRunning: Bool
+    let theme: WheelTheme
     let selected: Bool
     let hovered: Bool
     let dropTarget: Bool
@@ -419,8 +426,12 @@ private struct FavoritePositionLabel: View {
         let sector = FavoriteEditorSector(position: position)
         let angle = Double(position) * .pi / 4 - .pi / 2
             ZStack {
-                sector.fill(Color.accentColor.opacity(dropTarget ? 0.35 : selected ? 0.23 : hovered ? 0.10 : 0.015))
-                sector.stroke(dropTarget || selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.08),
+                sector.fill(RadialGradient(colors: theme.sectorColors, center: .center,
+                                           startRadius: FavoriteEditorGeometry.innerRadius,
+                                           endRadius: FavoriteEditorGeometry.diameter / 2))
+                    .opacity(dropTarget || selected ? 1 : hovered ? 0.4 : 0)
+                sector.stroke(dropTarget || selected ? theme.accent.opacity(0.7) :
+                              Color.primary.opacity(theme == .highContrast ? 0.40 : theme.isAero ? 0.24 : 0.08),
                               lineWidth: dropTarget ? 2.5 : selected ? 1.5 : 1)
                 VStack(spacing: 3) {
                     if let app {
@@ -432,7 +443,7 @@ private struct FavoritePositionLabel: View {
                     } else {
                         Image(systemName: "plus")
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(selected ? Color.accentColor : .secondary)
+                            .foregroundStyle(selected ? theme.accent : .secondary)
                             .frame(width: 36, height: 36)
                             .background(.primary.opacity(0.045), in: Circle())
                     }

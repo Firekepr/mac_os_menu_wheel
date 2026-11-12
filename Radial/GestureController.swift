@@ -426,6 +426,7 @@ final class GestureController: ObservableObject {
         let shouldToggleMainWindow = wheelIsOpen && selection.isOpenMainWindowHovered
         let closeTarget = wheelIsOpen && selection.isCloseHovered
             ? model.apps.first { $0.id == selection.closeTargetID } : nil
+        let forceQuit = preferences.allowsForceQuit && selection.forceQuitPhase == .ready
         let chosen = wheelIsOpen ? model.apps.first { $0.id == selection.id } : nil
         let scriptAction = wheelIsOpen ? selection.hoveredScriptAction : nil
         let choosingWindow = wheelIsOpen && selection.isChoosingWindow
@@ -444,8 +445,9 @@ final class GestureController: ObservableObject {
         } else if let closeTarget {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                let error = self.model.requestQuit(closeTarget)
-                self.status = error ?? L10n.text("Encerramento solicitado para %@.", closeTarget.name)
+                let error = self.model.requestQuit(closeTarget, force: forceQuit)
+                self.status = error ?? L10n.text(forceQuit ? "Encerramento forçado solicitado para %@."
+                                                : "Encerramento solicitado para %@.", closeTarget.name)
             }
         } else if let chosen, let scriptAction {
             DispatchQueue.main.async { [weak self] in
@@ -581,7 +583,8 @@ final class GestureController: ObservableObject {
         }
         guard didMoveForSelection else { selection.select(nil, canRevealClose: false); return }
         let local = CGPoint(x: point.x - panel.frame.minX, y: panel.frame.maxY - point.y)
-        selection.update(at: local, slots: model.slots, allowsBeyondEdge: true, actionDelay: preferences.actionDelay)
+        selection.update(at: local, slots: model.slots, allowsBeyondEdge: true,
+                         actionDelay: preferences.actionDelay, forceQuitDelay: preferences.closeHoverDelay)
     }
 
     private func dismiss(animated: Bool = true) {

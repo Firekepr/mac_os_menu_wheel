@@ -241,3 +241,12 @@
 "Silenciar" = "Silenciar";
 "Retroceder" = "Retroceder";
 "Parar reprodução" = "Parar reprodução";
+"Encerramento de apps" = "Encerramento de apps";
+"Permitir encerramento forçado" = "Permitir encerramento forçado";
+"Espera antes da barra" = "Espera antes da barra";
+"Mantenha o ponteiro sobre Fechar e selecione após a barra encher. O app pode perder alterações não salvas." = "Mantenha o ponteiro sobre Fechar e selecione após a barra encher. O app pode perder alterações não salvas.";
+"Forçar encerramento" = "Forçar encerramento";
+"Forçar" = "Forçar";
+"Forçar encerramento de %@" = "Forçar encerramento de %@";
+"Encerramento forçado solicitado para %@." = "Encerramento forçado solicitado para %@.";
+"Não foi possível forçar o encerramento de %@." = "Não foi possível forçar o encerramento de %@.";

@@ -32,8 +32,21 @@ final class WheelPreferences: ObservableObject {
     static let defaultDelay = 0.3
     nonisolated static let defaultActionDelay = 0.65
     static let actionDelayRange = 0.15...1.5
+    static let defaultForceQuitDelay = 0.6
+    static let forceQuitDelayRange = 0.15...3.0
     private let defaults: UserDefaults
     let appActions: AppActionPreferences
+    @Published var allowsForceQuit: Bool {
+        didSet { defaults.set(allowsForceQuit, forKey: "wheelAllowsForceQuit") }
+    }
+    @Published var forceQuitDelay: Double {
+        didSet {
+            let value = Self.validForceQuitDelay(forceQuitDelay)
+            if forceQuitDelay != value { forceQuitDelay = value }
+            defaults.set(value, forKey: "wheelForceQuitDelay")
+        }
+    }
+    var closeHoverDelay: TimeInterval? { allowsForceQuit ? forceQuitDelay : nil }
     @Published var theme: WheelTheme {
         didSet { defaults.set(theme.rawValue, forKey: "wheelTheme") }
     }
@@ -99,6 +112,8 @@ final class WheelPreferences: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         appActions = AppActionPreferences(defaults: defaults)
+        allowsForceQuit = (defaults.object(forKey: "wheelAllowsForceQuit") as? Bool) ?? true
+        forceQuitDelay = Self.validForceQuitDelay((defaults.object(forKey: "wheelForceQuitDelay") as? Double) ?? Self.defaultForceQuitDelay)
         wheelCapacity = WheelCapacity(rawValue: defaults.integer(forKey: "wheelCapacity")) ?? .eight
         theme = defaults.string(forKey: "wheelTheme").flatMap(WheelTheme.init(rawValue:)) ?? .glass
         keyboardShortcut = defaults.data(forKey: "wheelKeyboardShortcut")
@@ -122,6 +137,8 @@ final class WheelPreferences: ObservableObject {
         wheelDiameter = Self.defaultDiameter
         holdDelay = Self.defaultDelay
         actionDelay = Self.defaultActionDelay
+        allowsForceQuit = true
+        forceQuitDelay = Self.defaultForceQuitDelay
         triggerButton = .right
         showsMemoryUsage = false
         showsHoldPreview = false
@@ -137,6 +154,10 @@ final class WheelPreferences: ObservableObject {
     private static func validActionDelay(_ value: Double) -> Double {
         guard value.isFinite else { return defaultActionDelay }
         return min(max(value, actionDelayRange.lowerBound), actionDelayRange.upperBound)
+    }
+    private static func validForceQuitDelay(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultForceQuitDelay }
+        return min(max(value, forceQuitDelayRange.lowerBound), forceQuitDelayRange.upperBound)
     }
 }
 
@@ -263,6 +284,20 @@ struct WheelPreferencesView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Text(L10n.text("Cliques rápidos e arrastos continuam sendo encaminhados ao aplicativo. As alterações valem para o próximo gesto."))
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section(L10n.text("Encerramento de apps")) {
+                Toggle(L10n.text("Permitir encerramento forçado"), isOn: $preferences.allowsForceQuit)
+                if preferences.allowsForceQuit {
+                    VStack(spacing: 10) {
+                        LabeledContent(L10n.text("Espera antes da barra"), value: "\(Int((preferences.forceQuitDelay * 1000).rounded())) ms")
+                        Slider(value: $preferences.forceQuitDelay, in: WheelPreferences.forceQuitDelayRange, step: 0.05) {
+                            Text(L10n.text("Espera antes da barra"))
+                        }
+                        .labelsHidden()
+                    }
+                    Text(L10n.text("Mantenha o ponteiro sobre Fechar e selecione após a barra encher. O app pode perder alterações não salvas."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section(L10n.text("Teclado")) {
                 KeyboardShortcutSettings(preferences: preferences)

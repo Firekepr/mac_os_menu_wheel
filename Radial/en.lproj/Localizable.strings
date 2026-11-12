@@ -241,3 +241,12 @@
 "Silenciar" = "Mute";
 "Retroceder" = "Rewind";
 "Parar reprodução" = "Stop playback";
+"Encerramento de apps" = "Quitting apps";
+"Permitir encerramento forçado" = "Allow force quit";
+"Espera antes da barra" = "Delay before progress bar";
+"Mantenha o ponteiro sobre Fechar e selecione após a barra encher. O app pode perder alterações não salvas." = "Keep the pointer over Quit and select it once the bar fills. The app may lose unsaved changes.";
+"Forçar encerramento" = "Force Quit";
+"Forçar" = "Force";
+"Forçar encerramento de %@" = "Force Quit %@";
+"Encerramento forçado solicitado para %@." = "Force quit requested for %@.";
+"Não foi possível forçar o encerramento de %@." = "Could not force quit %@.";

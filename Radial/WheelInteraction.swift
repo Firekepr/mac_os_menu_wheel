@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+enum ForceQuitPhase: Equatable {
+    static let chargeDuration: TimeInterval = 0.4
+
+    case inactive, charging(startedAt: TimeInterval), ready
+}
+
 /// The close target survives the gap to its outer sector, but a different
 /// application selection clears it immediately and begins a fresh dwell.
 /// Revealing the action never performs it. Releasing/clicking its explicit hit
@@ -10,6 +16,7 @@ final class WheelInteraction: ObservableObject {
     @Published var id: String?
     @Published private(set) var closeTargetID: String?
     @Published private(set) var isCloseHovered = false
+    @Published private(set) var forceQuitPhase: ForceQuitPhase = .inactive
     @Published private(set) var hoveredScriptAction: AppScriptAction?
     @Published private(set) var mailBadgeNeedsAuthorization = false
     @Published private(set) var isOpenMainWindowHovered = false
@@ -26,6 +33,8 @@ final class WheelInteraction: ObservableObject {
     @Published private(set) var hoveredWindowAction: WindowAction?
     private var windowLookup: Task<Void, Never>?
     private var dwellTimer: Timer?
+    private var forceQuitTimer: Timer?
+    private var closeHoldDelay: TimeInterval?
 
     static let windowsPerPage = 3
     var isChoosingWindow: Bool { !windows.isEmpty }
@@ -69,6 +78,7 @@ final class WheelInteraction: ObservableObject {
         if hoveredScriptAction != nil { hoveredScriptAction = nil }
         if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
         if isCloseHovered { isCloseHovered = false }
+        updateForceQuit(delay: nil)
         if self.id != id {
             cancelDwell()
             self.id = id
@@ -107,19 +117,45 @@ final class WheelInteraction: ObservableObject {
         }
     }
 
-    func hoverClose() { hoverAction(nil) }
+    func hoverClose(forceQuitDelay: TimeInterval? = nil) {
+        hoverAction(nil, forceQuitDelay: forceQuitDelay)
+    }
 
-    private func hoverAction(_ action: AppScriptAction?) {
+    private func hoverAction(_ action: AppScriptAction?, forceQuitDelay: TimeInterval? = nil) {
         cancelDwell()
         if hoveredScriptAction != action { hoveredScriptAction = action }
         if isOpenMainWindowHovered { isOpenMainWindowHovered = false }
         if id != closeTargetID { id = closeTargetID }
         let hovered = closeTargetID != nil && action == nil
         if isCloseHovered != hovered { isCloseHovered = hovered }
+        updateForceQuit(delay: hovered ? forceQuitDelay : nil)
+    }
+
+    private func updateForceQuit(delay: TimeInterval?) {
+        guard closeHoldDelay != delay else { return }
+        closeHoldDelay = delay
+        forceQuitTimer?.invalidate()
+        forceQuitTimer = nil
+        if forceQuitPhase != .inactive { forceQuitPhase = .inactive }
+        guard let delay else { return }
+        forceQuitTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.beginForceQuitCharge() }
+        }
+    }
+
+    private func beginForceQuitCharge() {
+        forceQuitPhase = .charging(startedAt: ProcessInfo.processInfo.systemUptime)
+        forceQuitTimer = Timer.scheduledTimer(withTimeInterval: ForceQuitPhase.chargeDuration, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.forceQuitTimer = nil
+                self?.forceQuitPhase = .ready
+            }
+        }
     }
 
     func reset() {
         cancelDwell()
+        updateForceQuit(delay: nil)
         if mailBadgeNeedsAuthorization { mailBadgeNeedsAuthorization = false }
         if isChoosingWindow { windows = [] }
         if windowPage != 0 { windowPage = 0 }
@@ -138,7 +174,8 @@ final class WheelInteraction: ObservableObject {
         windowLookup = nil
     }
 
-    func update(at point: CGPoint, slots: [WheelSlot], allowsBeyondEdge: Bool, actionDelay: TimeInterval? = nil) {
+    func update(at point: CGPoint, slots: [WheelSlot], allowsBeyondEdge: Bool, actionDelay: TimeInterval? = nil,
+                forceQuitDelay: TimeInterval? = nil) {
         let inset = WheelActionGeometry.inset(diameter: diameter)
         let local = CGPoint(x: point.x - inset, y: point.y - inset)
         if WheelGeometry.isOpenMainWindowArea(at: local, diameter: diameter) {
@@ -170,7 +207,7 @@ final class WheelInteraction: ObservableObject {
             for (part, action) in actions.enumerated() {
                 if WheelActionGeometry.actionPath(diameter: diameter, index: targetIndex, count: slots.count,
                                                   part: part, parts: actions.count).cgPath.contains(point) {
-                    hoverAction(action)
+                    hoverAction(action, forceQuitDelay: forceQuitDelay)
                     return
                 }
             }
@@ -311,16 +348,31 @@ struct AppActionSector: View {
     let action: AppScriptAction?
     let theme: WheelTheme
     var highlighted = false
+    var forceQuitPhase: ForceQuitPhase = .inactive
 
     var body: some View {
+        if case .charging(let startedAt) = forceQuitPhase {
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { _ in
+                let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+                let progress = min(max(elapsed / ForceQuitPhase.chargeDuration, 0), 1)
+                sectorContent(progress: progress)
+            }
+        } else {
+            sectorContent(progress: forceQuitPhase == .ready ? 1 : 0)
+        }
+    }
+
+    private func sectorContent(progress: Double) -> some View {
         let side = WheelActionGeometry.outerSize(diameter: diameter)
         let angle = WheelActionGeometry.actionAngle(index: index, count: count,
                                                      part: part, parts: parts) * .pi / 180
         let radius = WheelActionGeometry.actionRadius(diameter: diameter)
+        let skullSize = min(max(19, 25 * diameter / WheelGeometry.size),
+                            max(13, radius * .pi / Double(max(6, count) * parts) * 1.6))
         let shape = OuterActionSector(diameter: diameter, index: index, count: count,
                                       part: part, parts: parts)
         let accent: Color = action == AppScriptActions.authorizeMailBadge ? .orange : (action == nil ? .red : .accentColor)
-        ZStack {
+        return ZStack {
             WheelBackdrop(shape: shape, theme: theme)
             if action == nil && theme.isAero {
                 shape.fill(Color(red: 0.45, green: 0.06, blue: 0.13)
@@ -330,21 +382,66 @@ struct AppActionSector: View {
             } else {
                 shape.fill(accent.opacity(highlighted ? 0.40 : 0.08))
             }
+            if forceQuitPhase != .inactive {
+                shape.fill(.black.opacity(progress))
+            }
             shape.stroke(accent.opacity(highlighted ? 0.9 : 0.35), lineWidth: theme == .highContrast ? 2 : 1)
                 .shadow(color: accent.opacity(theme == .glass && highlighted ? 0.4 : 0), radius: 8)
             VStack(spacing: 3) {
-                Image(systemName: action?.symbol ?? "xmark.circle.fill")
-                    .font(.system(size: parts == 1 ? 18 : 14 * diameter / WheelGeometry.size,
-                                  weight: .semibold))
+                if forceQuitPhase == .inactive {
+                    Image(systemName: action?.symbol ?? "xmark.circle.fill")
+                        .font(.system(size: parts == 1 ? 18 : 14 * diameter / WheelGeometry.size,
+                                      weight: .semibold))
+                } else {
+                    ForceQuitSkull()
+                        .fill(.white, style: FillStyle(eoFill: true))
+                        .frame(width: skullSize, height: skullSize)
+                        .accessibilityHidden(true)
+                }
                 if parts == 1 {
-                    Text(action?.displayTitle ?? L10n.text("Fechar"))
+                    Text(action?.displayTitle ?? L10n.text(forceQuitPhase == .ready ? "Forçar" : "Fechar"))
                         .font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                }
+                if case .charging = forceQuitPhase {
+                    Capsule().fill(.white.opacity(0.3))
+                        .overlay(alignment: .leading) {
+                            Capsule().fill(.white)
+                                .scaleEffect(x: progress, y: 1, anchor: .leading)
+                        }
+                        .frame(width: min(26, radius * .pi / Double(max(6, count) * parts)), height: 3)
+                        .accessibilityHidden(true)
                 }
             }
             .foregroundStyle(theme == .highContrast || theme.isAero || highlighted ? Color.white : accent)
             .offset(x: cos(angle) * radius, y: sin(angle) * radius)
         }
         .frame(width: side, height: side)
+    }
+}
+
+private struct ForceQuitSkull: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 12, y: 1))
+        path.addCurve(to: CGPoint(x: 23, y: 11), control1: CGPoint(x: 19, y: 1), control2: CGPoint(x: 23, y: 5))
+        path.addQuadCurve(to: CGPoint(x: 18, y: 18), control: CGPoint(x: 23, y: 16))
+        path.addLine(to: CGPoint(x: 18, y: 22))
+        path.addQuadCurve(to: CGPoint(x: 16, y: 24), control: CGPoint(x: 18, y: 24))
+        let teeth = [CGPoint(x: 15, y: 24), CGPoint(x: 15, y: 21), CGPoint(x: 13.5, y: 21),
+                     CGPoint(x: 13.5, y: 24), CGPoint(x: 10.5, y: 24), CGPoint(x: 10.5, y: 21),
+                     CGPoint(x: 9, y: 21), CGPoint(x: 9, y: 24), CGPoint(x: 8, y: 24)]
+        for point in teeth { path.addLine(to: point) }
+        path.addQuadCurve(to: CGPoint(x: 6, y: 22), control: CGPoint(x: 6, y: 24))
+        path.addLine(to: CGPoint(x: 6, y: 18))
+        path.addQuadCurve(to: CGPoint(x: 1, y: 11), control: CGPoint(x: 1, y: 16))
+        path.addCurve(to: CGPoint(x: 12, y: 1), control1: CGPoint(x: 1, y: 5), control2: CGPoint(x: 5, y: 1))
+        path.closeSubpath()
+        path.addEllipse(in: CGRect(x: 4.5, y: 9, width: 6, height: 5.5))
+        path.addEllipse(in: CGRect(x: 13.5, y: 9, width: 6, height: 5.5))
+        path.addLines([CGPoint(x: 12, y: 14), CGPoint(x: 10.5, y: 17.5), CGPoint(x: 13.5, y: 17.5)])
+        path.closeSubpath()
+        return path.applying(CGAffineTransform(scaleX: rect.width / 24, y: rect.height / 24))
+            .offsetBy(dx: rect.minX, dy: rect.minY)
     }
 }
 
@@ -368,7 +465,8 @@ struct WheelWithActions: View {
             return action.title
         }
         if let action = interaction.hoveredScriptAction { return action.displayTitle }
-        return interaction.isCloseHovered ? L10n.text("Fechar") : nil
+        guard interaction.isCloseHovered else { return nil }
+        return L10n.text(interaction.forceQuitPhase == .ready ? "Forçar encerramento" : "Fechar")
     }
 
     private var selectedWindowTitle: String? {
@@ -469,17 +567,19 @@ struct WheelWithActions: View {
                 ForEach(actions.indices, id: \.self) { part in
                     let action = actions[part]
                     let highlighted = action.map { $0 == interaction.hoveredScriptAction } ?? interaction.isCloseHovered
-                    let label = action.map(\.displayTitle) ?? L10n.text("Fechar %@", target.name)
+                    let phase = action == nil ? interaction.forceQuitPhase : .inactive
+                    let label = action.map(\.displayTitle)
+                        ?? L10n.text(phase == .ready ? "Forçar encerramento de %@" : "Fechar %@", target.name)
                     AppActionSector(diameter: diameter, index: index, count: model.slots.count,
                                     part: part, parts: actions.count, action: action,
-                                    theme: theme, highlighted: highlighted)
+                                    theme: theme, highlighted: highlighted, forceQuitPhase: phase)
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(label)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction {
                         if let action { model.perform(action, on: target) }
-                        else { model.requestQuit(target) }
+                        else { model.requestQuit(target, force: phase == .ready) }
                     }
                     .help(label)
                 }

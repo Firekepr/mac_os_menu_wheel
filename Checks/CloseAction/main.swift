@@ -109,6 +109,24 @@ MainActor.assumeIsolated {
         state.reset()
     }
     let app = WheelApp(application: NSRunningApplication.current)
+    state.select(app.id, canRevealClose: true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.06))
+    state.hoverClose()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+    precondition(state.isCloseHovered && state.forceQuitPhase == .inactive)
+    state.hoverClose(forceQuitDelay: 0.03)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.06))
+    guard case .charging = state.forceQuitPhase else { preconditionFailure("Close hover did not start charging") }
+    state.select(nil, canRevealClose: false)
+    precondition(state.forceQuitPhase == .inactive)
+    state.hoverClose(forceQuitDelay: 0.03)
+    precondition(state.forceQuitPhase == .inactive, "Reentering the sector retained the old charge")
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: ForceQuitPhase.chargeDuration + 0.08))
+    state.hoverClose(forceQuitDelay: 0.03)
+    precondition(state.forceQuitPhase == .ready, "Checking the release point cleared the armed action")
+    state.reset()
+    precondition(state.forceQuitPhase == .inactive)
+
     var requests = 0
     precondition(model.requestQuit(app, isRunning: { _ in true }, terminate: { _ in requests += 1; return true }) == nil)
     precondition(requests == 1)
@@ -123,6 +141,11 @@ MainActor.assumeIsolated {
     precondition(finder.isQuitProtected && !finder.canRequestQuit)
     precondition(model.requestQuit(finder, isRunning: { _ in true }, terminate: { _ in requests += 1; return true }) != nil)
     precondition(requests == 2, "A Finder quit request reached the termination API")
+    var forced = 0
+    let forceTerminate: (NSRunningApplication) -> Bool = { _ in forced += 1; return true }
+    precondition(model.requestQuit(app, force: true, isRunning: { _ in true }, forceTerminate: forceTerminate) == nil)
+    precondition(model.requestQuit(finder, force: true, isRunning: { _ in true }, forceTerminate: forceTerminate) != nil)
+    precondition(forced == 1, "Force quit reached a protected app")
     state.reset()
     state.diameter = 380
     let finderSlots = (0..<8).map { WheelSlot(id: $0, app: $0 == 0 ? finder : nil) }

@@ -357,9 +357,10 @@ final class RunningApps: ObservableObject {
     }
 
     @discardableResult
-    func requestQuit(_ app: WheelApp,
+    func requestQuit(_ app: WheelApp, force: Bool = false,
                      isRunning: (NSRunningApplication) -> Bool = { !$0.isTerminated },
-                     terminate: (NSRunningApplication) -> Bool = { $0.terminate() }) -> String? {
+                     terminate: (NSRunningApplication) -> Bool = { $0.terminate() },
+                     forceTerminate: (NSRunningApplication) -> Bool = { $0.forceTerminate() }) -> String? {
         guard !app.isQuitProtected else {
             let message = L10n.text("O Finder não pode ser fechado pelo Radial.")
             activationError = message
@@ -370,8 +371,10 @@ final class RunningApps: ObservableObject {
             activationError = message
             return message
         }
-        guard terminate(running) else {
-            let message = L10n.text("Não foi possível solicitar o encerramento de %@.", app.name)
+        let accepted = force ? forceTerminate(running) : terminate(running)
+        guard accepted else {
+            let message = L10n.text(force ? "Não foi possível forçar o encerramento de %@."
+                                        : "Não foi possível solicitar o encerramento de %@.", app.name)
             activationError = message
             return message
         }

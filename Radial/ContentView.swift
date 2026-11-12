@@ -47,7 +47,7 @@ struct ContentView: View {
                         model.perform(action, on: selected)
                     } else if interaction.isCloseHovered,
                        let target = model.apps.first(where: { $0.id == interaction.closeTargetID }) {
-                        model.requestQuit(target)
+                        model.requestQuit(target, force: interaction.forceQuitPhase == .ready)
                     } else if let selected { model.activate(selected) }
                     interaction.reset()
                 }
@@ -137,6 +137,7 @@ struct ContentView: View {
             .allowsHitTesting(false)
         }
         .onAppear { interaction.diameter = previewDiameter }
+        .onChange(of: preferences.closeHoverDelay) { _, _ in interaction.reset() }
         .onChange(of: preferences.wheelCapacity) { _, capacity in
             model.refresh(capacity: capacity)
             interaction.reset()
@@ -167,7 +168,8 @@ struct ContentView: View {
 
     private func select(at point: CGPoint) {
         interaction.diameter = previewDiameter
-        interaction.update(at: point, slots: model.slots, allowsBeyondEdge: false, actionDelay: preferences.actionDelay)
+        interaction.update(at: point, slots: model.slots, allowsBeyondEdge: false,
+                           actionDelay: preferences.actionDelay, forceQuitDelay: preferences.closeHoverDelay)
     }
 }
 

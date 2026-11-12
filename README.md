@@ -1,6 +1,6 @@
 # Radial
 
-**[Download Radial v1.0 for macOS / Baixar Radial v1.0 para macOS (.zip)](https://github.com/Firekepr/mac_os_menu_wheel/releases/download/v1.0/Radial-v1.0-macOS.zip)**
+**[Download Radial v1.1 for macOS / Baixar Radial v1.1 para macOS (.zip)](https://github.com/Firekepr/mac_os_menu_wheel/releases/download/v1.1/Radial-v1.1-macOS.zip)**
 
 macOS 26+ · Apple Silicon & Intel
 
@@ -23,7 +23,7 @@ Radial is a native macOS app switcher that puts your apps and windows within a g
 
 <img width="692" height="388" alt="Demonstration GIF" src="https://github.com/user-attachments/assets/206372b7-0fdc-42af-a62e-8ad9d270a8b1" />
 
-Extract the ZIP, move `Radial.app` to **Applications**, and open it. To use the global mouse gesture, enable it in Radial and grant access under **System Settings → Privacy & Security → Accessibility**. Version 1.0 isn't notarized, so macOS may block it on first launch.
+Extract the ZIP, move `Radial.app` to **Applications**, and open it. To use the global mouse gesture, enable it in Radial and grant access under **System Settings → Privacy & Security → Accessibility**. Version 1.1 uses ad hoc signing. macOS may block it on first launch because it has no Apple notarization.
 
 ## Português
 
@@ -38,7 +38,7 @@ O Radial é um alternador nativo do macOS que coloca seus apps e janelas a um ge
 
 <img width="692" height="388" alt="Demonstration GIF" src="https://github.com/user-attachments/assets/206372b7-0fdc-42af-a62e-8ad9d270a8b1" />
 
-Extraia o ZIP, mova o `Radial.app` para **Aplicativos** e abra o app. Para usar o gesto global do mouse, ative-o no Radial e conceda acesso em **Ajustes do Sistema → Privacidade e Segurança → Acessibilidade**. A versão 1.0 ainda não foi notarizada pela Apple, então o macOS pode bloquear a primeira abertura.
+Extraia o ZIP, mova o `Radial.app` para **Aplicativos** e abra o app. Para usar o gesto global do mouse, ative-o no Radial e conceda acesso em **Ajustes do Sistema → Privacidade e Segurança → Acessibilidade**. A versão 1.1 usa assinatura ad hoc. O macOS pode bloquear a primeira abertura porque o app está sem notarização da Apple.
 
 ## License / Licença
 
